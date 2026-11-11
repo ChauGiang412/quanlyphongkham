@@ -1,23 +1,30 @@
+
 <?php
 class Database {
-    private $host = "localhost";
-    private $db_name = "quan_ly_phong_kham";
+    private $host = "127.0.0.1";
+    private $db_name = "quanlyphongkham";
     private $username = "root";
-    private $password = ""; 
-    private $port = "3307"; // Đảm bảo đúng port CSDL 3307
-    public $conn;
+    private $password = "";
+    private $port = "3307";
 
-    public function getConnection() {
-        $this->conn = null;
+    public function getConnection(): PDO {
+        $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->db_name};charset=utf8mb4";
+
         try {
-            $dsn = "mysql:host=" . $this->host . ";port=" . $this->port . ";dbname=" . $this->db_name . ";charset=utf8mb4";
-            $this->conn = new PDO($dsn, $this->username, $this->password, [
+            $conn = new PDO($dsn, $this->username, $this->password, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false
             ]);
-        } catch(PDOException $e) {
-            echo "Lỗi kết nối CSDL: " . $e->getMessage();
+
+            return $conn;
+
+        } catch (PDOException $e) {
+            throw new RuntimeException(
+                "Không thể kết nối cơ sở dữ liệu: " . $e->getMessage(),
+                0,
+                $e
+            );
         }
-        return $this->conn;
     }
 }

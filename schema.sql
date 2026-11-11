@@ -1,9 +1,7 @@
--- 2. Xóa và tạo lại toàn bộ cơ sở dữ liệu
-DROP DATABASE IF EXISTS quan_ly_phong_kham;
-CREATE DATABASE IF NOT EXISTS quan_ly_phong_kham DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; 
-USE quan_ly_phong_kham;
+-- Đã bỏ lệnh DROP DATABASE để tránh xóa database cũ.
+CREATE DATABASE IF NOT EXISTS quanlyphongkham DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; 
+USE quanlyphongkham;
 
--- 3. Tạo lại các bảng theo đúng chuẩn
 CREATE TABLE nguoi_dung (
     ma_nguoi_dung INT AUTO_INCREMENT PRIMARY KEY,
     ho_ten VARCHAR(100) NOT NULL,
@@ -119,7 +117,6 @@ CREATE TABLE phieu_kham_benh (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Nạp dữ liệu mẫu chuẩn xác
 INSERT INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, dia_chi, vai_tro) VALUES
 (1, 'Quản Trị Viên Hệ Thống', 'admin@medbooking.vn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '0901111222', 'Khac', '1990-01-01', 'Hà Nội', 'quan_tri'),
 (2, 'BS.CKI Phạm Minh Quân', 'dr.quan@medbooking.vn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '0944444444', 'Nam', '1985-05-15', 'Đống Đa, Hà Nội', 'bac_si'),
@@ -173,7 +170,7 @@ UPDATE chuyen_khoa
 SET gioi_thieu_chi_tiet = 'Khoa Mắt ứng dụng các công nghệ chẩn đoán và điều trị tật khúc xạ, cườm khô, cườm nước tiên tiến. Hệ thống sinh hiển vi soi đáy mắt và máy đo nhãn áp không tiếp xúc giúp quá trình thăm khám diễn ra nhẹ nhàng, chính xác và không gây đau đớn cho bệnh nhân.'
 WHERE ten_chuyen_khoa LIKE '%Mắt%';
 
-USE quan_ly_phong_kham;
+USE quanlyphongkham;
 ALTER TABLE goi_kham ADD COLUMN quy_trinh TEXT NULL AFTER mo_ta;
 -- 1. Gói Khám Tổng Quát Cơ Bản (Mã 1)
 UPDATE goi_kham 

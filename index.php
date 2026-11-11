@@ -1,3 +1,4 @@
+
 <?php
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -12,14 +13,27 @@ require_once __DIR__ . '/controllers/AdminController.php';
 require_once __DIR__ . '/controllers/ChatController.php';
 require_once __DIR__ . '/controllers/BacSiController.php';
 
-// Lấy tên chức năng.
+// Lấy chức năng cần thực hiện.
 $act = $_GET['act'] ?? 'home';
 
-// Khởi tạo các controller dùng chung.
-$benhNhanController = new BenhNhanController();
-$authController = new AuthController();
+// Hàm kiểm tra vai trò.
+function requireRole(array $allowedRoles): void
+{
+    if (empty($_SESSION['user'])) {
+        header('Location: index.php?act=login');
+        exit;
+    }
 
-// Điều hướng.
+    $role = $_SESSION['user']['vai_tro']
+        ?? $_SESSION['vai_tro']
+        ?? '';
+
+    if (!in_array($role, $allowedRoles, true)) {
+        http_response_code(403);
+        exit('Bạn không có quyền truy cập chức năng này.');
+    }
+}
+
 switch ($act) {
 
     // =====================================
@@ -27,7 +41,8 @@ switch ($act) {
     // =====================================
 
     case 'home':
-        $benhNhanController->home();
+        $controller = new BenhNhanController();
+        $controller->home();
         break;
 
 
@@ -36,84 +51,114 @@ switch ($act) {
     // =====================================
 
     case 'login':
-        $authController->login();
+        $controller = new AuthController();
+        $controller->login();
         break;
 
     case 'register':
-        $authController->register();
+        $controller = new AuthController();
+        $controller->register();
         break;
 
     case 'logout':
     case 'dang-xuat':
-        $authController->logout();
+        $controller = new AuthController();
+        $controller->logout();
         break;
 
 
     // =====================================
-    // CHỨC NĂNG CÔNG KHAI VÀ BỆNH NHÂN
+    // CHỨC NĂNG BỆNH NHÂN
     // =====================================
 
     case 'chi-tiet-chuyen-khoa':
-        $benhNhanController->chiTietChuyenKhoa();
-        break;
-
     case 'chi-tiet-bac-si':
-        $benhNhanController->chiTietBacSi();
-        break;
-
     case 'chi-tiet-goi-kham':
-        $benhNhanController->chiTietGoiKham();
+
+        $controller = new BenhNhanController();
+
+        if ($act === 'chi-tiet-chuyen-khoa') {
+            $controller->chiTietChuyenKhoa();
+        } elseif ($act === 'chi-tiet-bac-si') {
+            $controller->chiTietBacSi();
+        } else {
+            $controller->chiTietGoiKham();
+        }
+
         break;
 
     case 'chon-loai-lich':
-        $benhNhanController->chonLoaiLich();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->chonLoaiLich();
         break;
 
     case 'dat-lich':
     case 'dat-lich-chuyen-khoa':
-        $benhNhanController->index();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->index();
         break;
 
     case 'dat-lich-exec':
     case 'xac-nhan-dat-lich':
-        $benhNhanController->datLich();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->datLich();
         break;
 
     case 'dat-goi-kham':
-        $benhNhanController->formDatGoiKham();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->formDatGoiKham();
         break;
 
     case 'dat-goi-kham-exec':
     case 'xac-nhan-dat-goi':
-        $benhNhanController->xuLyDatGoiKham();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->xuLyDatGoiKham();
         break;
 
     case 'api-gio-da-dat':
-        $benhNhanController->getGioDaDatApi();
+        $controller = new BenhNhanController();
+        $controller->getGioDaDatApi();
         break;
 
     case 'lich-su':
-        $benhNhanController->lichSu();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->lichSu();
         break;
 
     case 'chi-tiet-lich':
-        $benhNhanController->chiTietLich();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->chiTietLich();
         break;
 
     case 'huy-lich':
-        $benhNhanController->huyLich();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->huyLich();
         break;
 
     case 'gui-danh-gia':
-        $benhNhanController->guiDanhGia();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->guiDanhGia();
         break;
 
     case 'ho-so':
-        $benhNhanController->hoSo();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->hoSo();
         break;
 
     case 'cap-nhat-ho-so':
-        $benhNhanController->capNhatHoSo();
+        requireRole(['benh_nhan']);
+        $controller = new BenhNhanController();
+        $controller->capNhatHoSo();
         break;
 
 
@@ -122,10 +167,9 @@ switch ($act) {
     // =====================================
 
     case 'chat-reply':
-
-        $chatController = new ChatController();
-        $chatController->reply();
-
+        requireRole(['benh_nhan']);
+        $controller = new ChatController();
+        $controller->reply();
         break;
 
 
@@ -135,66 +179,57 @@ switch ($act) {
 
     case 'bac-si':
     case 'bac-si-dashboard':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->dashboard();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->dashboard();
         break;
 
     case 'bac-si-lich-kham':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->lichKham();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->lichKham();
         break;
 
     case 'bac-si-chi-tiet-lich':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->chiTietLich();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->chiTietLich();
         break;
 
     case 'bac-si-cap-nhat-trang-thai':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->capNhatTrangThai();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->capNhatTrangThai();
         break;
 
     case 'bac-si-luu-ket-qua':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->luuKetQuaKham();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->luuKetQuaKham();
         break;
 
     case 'bac-si-benh-nhan':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->benhNhan();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->benhNhan();
         break;
 
     case 'bac-si-danh-gia':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->danhGia();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->danhGia();
         break;
 
     case 'bac-si-ho-so':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->hoSo();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->hoSo();
         break;
 
     case 'bac-si-cap-nhat-ho-so':
-
-        $bacSiController = new BacSiController();
-        $bacSiController->capNhatHoSo();
-
+        requireRole(['bac_si']);
+        $controller = new BacSiController();
+        $controller->capNhatHoSo();
         break;
 
 
@@ -204,101 +239,87 @@ switch ($act) {
 
     case 'admin':
     case 'admin-dashboard':
-
-        $adminController = new AdminController();
-        $adminController->dashboard();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->dashboard();
         break;
 
     case 'admin-chuyen-khoa':
-
-        $adminController = new AdminController();
-        $adminController->quanLyChuyenKhoa();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyChuyenKhoa();
         break;
 
     case 'admin-xoa-chuyen-khoa':
-
-        $adminController = new AdminController();
-        $adminController->xoaChuyenKhoa();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->xoaChuyenKhoa();
         break;
 
     case 'admin-bac-si':
-
-        $adminController = new AdminController();
-        $adminController->quanLyBacSi();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyBacSi();
         break;
 
     case 'admin-xoa-bac-si':
-
-        $adminController = new AdminController();
-        $adminController->xoaBacSi();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->xoaBacSi();
         break;
 
     case 'admin-goi-kham':
-
-        $adminController = new AdminController();
-        $adminController->quanLyGoiKham();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyGoiKham();
         break;
 
     case 'admin-xoa-goi-kham':
-
-        $adminController = new AdminController();
-        $adminController->xoaGoiKham();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->xoaGoiKham();
         break;
 
     case 'admin-lich-kham':
-
-        $adminController = new AdminController();
-        $adminController->quanLyLichKham();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyLichKham();
         break;
 
     case 'admin-duyet-lich':
-
-        $adminController = new AdminController();
-        $adminController->duyetLich();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->duyetLich();
         break;
 
     case 'admin-huy-lich':
-
-        $adminController = new AdminController();
-        $adminController->huyLich();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->huyLich();
         break;
 
     case 'admin-da-kham':
-
-        $adminController = new AdminController();
-        $adminController->daKham();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->daKham();
         break;
 
     case 'admin-benh-nhan':
-
-        $adminController = new AdminController();
-        $adminController->quanLyBenhNhan();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyBenhNhan();
         break;
 
     case 'admin-danh-gia':
-
-        $adminController = new AdminController();
-        $adminController->quanLyDanhGia();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyDanhGia();
         break;
 
     case 'admin-thong-bao':
-
-        $adminController = new AdminController();
-        $adminController->quanLyThongBao();
-
+        requireRole(['quan_tri']);
+        $controller = new AdminController();
+        $controller->quanLyThongBao();
         break;
 
 
@@ -307,31 +328,21 @@ switch ($act) {
     // =====================================
 
     default:
-
         http_response_code(404);
-
         ?>
 
         <!DOCTYPE html>
         <html lang="vi">
-
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport"
-                  content="width=device-width, initial-scale=1.0">
-
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>404 - Không tìm thấy trang</title>
-
             <script src="https://cdn.tailwindcss.com"></script>
         </head>
 
         <body class="bg-slate-50 min-h-screen flex items-center justify-center">
-
             <div class="text-center px-6">
-
-                <h1 class="text-8xl font-bold text-teal-600 mb-4">
-                    404
-                </h1>
+                <h1 class="text-8xl font-bold text-teal-600 mb-4">404</h1>
 
                 <h2 class="text-2xl font-bold text-slate-800 mb-3">
                     Không tìm thấy trang
@@ -343,18 +354,12 @@ switch ($act) {
 
                 <a href="index.php?act=home"
                    class="inline-block bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl font-semibold transition">
-
                     Quay về trang chủ
-
                 </a>
-
             </div>
-
         </body>
-
         </html>
 
         <?php
-
         break;
 }

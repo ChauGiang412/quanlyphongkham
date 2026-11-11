@@ -13,8 +13,20 @@ class AuthController
             session_start();
         }
 
-        $database = new Database();
-        $this->db = $database->getConnection();
+        try {
+            $database = new Database();
+            $connection = $database->getConnection();
+
+            if (!$connection instanceof PDO) {
+                throw new RuntimeException('Kết nối cơ sở dữ liệu không hợp lệ.');
+            }
+
+            $this->db = $connection;
+        } catch (Throwable $e) {
+            error_log('Database connection error: ' . $e->getMessage());
+            http_response_code(500);
+            exit('Không thể kết nối cơ sở dữ liệu. Vui lòng kiểm tra cấu hình Database.php và trạng thái MySQL.');
+        }
     }
 
     /**
@@ -27,16 +39,16 @@ class AuthController
         switch ($role) {
             case 'quan_tri':
                 header('Location: index.php?act=admin-dashboard');
-                exit();
+                exit;
 
             case 'bac_si':
                 header('Location: index.php?act=bac-si-dashboard');
-                exit();
+                exit;
 
             case 'benh_nhan':
             default:
                 header('Location: index.php?act=home');
-                exit();
+                exit;
         }
     }
 
@@ -47,8 +59,6 @@ class AuthController
     {
         $error = '';
 
-        // Nếu đã đăng nhập và chỉ truy cập trang login,
-        // chuyển người dùng đến trang phù hợp với vai trò.
         if (
             $_SERVER['REQUEST_METHOD'] !== 'POST'
             && !empty($_SESSION['user'])
@@ -76,28 +86,27 @@ class AuthController
                     ";
 
                     $stmt = $this->db->prepare($sql);
-                    $stmt->execute([
-                        ':email' => $email
-                    ]);
+                    $stmt->execute([':email' => $email]);
 
-                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $user = $stmt->fetch();
 
                     if (!$user) {
                         $error = 'Email hoặc mật khẩu không chính xác.';
                     } else {
-                        $storedPassword = $user['mat_khau'];
+                        $storedPassword = $user['mat_khau'] ?? '';
 
-                        // Hỗ trợ mật khẩu đã mã hóa bằng password_hash.
-                        // Đồng thời hỗ trợ dữ liệu mật khẩu cũ dạng văn bản.
                         $passwordCorrect = password_verify(
                             $password,
                             $storedPassword
                         );
 
-                        if (!$passwordCorrect && $password === $storedPassword) {
+                        // Hỗ trợ tài khoản cũ đang lưu mật khẩu dạng văn bản.
+                        if (
+                            !$passwordCorrect
+                            && $password === $storedPassword
+                        ) {
                             $passwordCorrect = true;
 
-                            // Mã hóa lại mật khẩu cũ sau khi đăng nhập thành công.
                             $newPassword = password_hash(
                                 $password,
                                 PASSWORD_DEFAULT
@@ -118,7 +127,6 @@ class AuthController
                         if (!$passwordCorrect) {
                             $error = 'Email hoặc mật khẩu không chính xác.';
                         } else {
-                            // Xóa session cũ và tạo session mới.
                             session_regenerate_id(true);
 
                             unset($user['mat_khau']);
@@ -130,19 +138,18 @@ class AuthController
                             $_SESSION['vai_tro'] =
                                 trim($user['vai_tro']);
 
-                            // Chuyển đến trang theo vai trò thực tế trong DB.
                             $this->redirectByRole(
                                 $user['vai_tro']
                             );
                         }
                     }
                 } catch (PDOException $e) {
+                    error_log('Login error: ' . $e->getMessage());
                     $error = 'Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.';
                 }
             }
         }
 
-        // login.php nằm cùng cấp với index.php.
         require __DIR__ . '/../login.php';
     }
 
@@ -167,6 +174,7 @@ class AuthController
             $hoTen = trim($_POST['ho_ten'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $matKhau = $_POST['mat_khau'] ?? '';
+
             $xacNhanMatKhau = $_POST['xac_nhan_mat_khau']
                 ?? $_POST['confirm_password']
                 ?? '';
@@ -176,23 +184,21 @@ class AuthController
             );
 
             if (
-                $hoTen === '' ||
-                $email === '' ||
-                $matKhau === ''
+                $hoTen === ''
+                || $email === ''
+                || $matKhau === ''
             ) {
                 $error = 'Vui lòng nhập đầy đủ thông tin bắt buộc.';
             } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $error = 'Email không đúng định dạng.';
             } elseif (strlen($matKhau) < 6) {
                 $error = 'Mật khẩu phải có ít nhất 6 ký tự.';
-            } elseif (
-                $xacNhanMatKhau !== '' &&
-                $matKhau !== $xacNhanMatKhau
-            ) {
+            } elseif ($xacNhanMatKhau === '') {
+                $error = 'Vui lòng xác nhận mật khẩu.';
+            } elseif ($matKhau !== $xacNhanMatKhau) {
                 $error = 'Mật khẩu xác nhận không khớp.';
             } else {
                 try {
-                    // Kiểm tra email đã tồn tại hay chưa.
                     $check = $this->db->prepare("
                         SELECT ma_nguoi_dung
                         FROM nguoi_dung
@@ -200,9 +206,7 @@ class AuthController
                         LIMIT 1
                     ");
 
-                    $check->execute([
-                        ':email' => $email
-                    ]);
+                    $check->execute([':email' => $email]);
 
                     if ($check->fetch()) {
                         $error = 'Email này đã được sử dụng.';
@@ -212,7 +216,6 @@ class AuthController
                             PASSWORD_DEFAULT
                         );
 
-                        // Người đăng ký mới mặc định là bệnh nhân.
                         $sql = "
                             INSERT INTO nguoi_dung (
                                 ho_ten,
@@ -241,17 +244,16 @@ class AuthController
                                     : null
                         ]);
 
-                        // Đăng ký xong chuyển về trang đăng nhập.
                         header('Location: index.php?act=login');
-                        exit();
+                        exit;
                     }
                 } catch (PDOException $e) {
+                    error_log('Register error: ' . $e->getMessage());
                     $error = 'Không thể đăng ký tài khoản. Vui lòng thử lại.';
                 }
             }
         }
 
-        // register.php nằm cùng cấp với index.php.
         require __DIR__ . '/../register.php';
     }
 
@@ -283,6 +285,6 @@ class AuthController
         session_destroy();
 
         header('Location: index.php?act=home');
-        exit();
+        exit;
     }
 }
