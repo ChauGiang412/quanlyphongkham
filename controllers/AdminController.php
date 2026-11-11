@@ -1497,7 +1497,12 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
                     <label class="block text-xs font-semibold">Hướng dẫn chuẩn bị</label>
                     <textarea name="huong_dan_chuan_bi" rows="3" required class="w-full p-3 border rounded-xl text-sm">Vui lòng mang theo giấy tờ tùy thân, hồ sơ bệnh án, kết quả xét nghiệm và đơn thuốc cũ (nếu có). Có mặt trước giờ hẹn 15 phút.</textarea>
                     <label class="block text-xs font-semibold">Quy trình khám</label>
-                    <textarea name="quy_trinh_kham" rows="4" required class="w-full p-3 border rounded-xl text-sm">1. Tiếp nhận và kiểm tra thông tin đặt lịch.\n2. Làm thủ tục tại quầy tiếp đón.\n3. Gặp bác sĩ chuyên khoa.\n4. Thực hiện xét nghiệm hoặc chẩn đoán hình ảnh nếu bác sĩ chỉ định.\n5. Nhận kết luận và tư vấn sau khám.</textarea>
+                    <textarea name="quy_trinh_kham" rows="4" required class="w-full p-3 border rounded-xl text-sm">
+                    1. Tiếp nhận và kiểm tra thông tin đặt lịch.
+                    2. Làm thủ tục tại quầy tiếp đón.
+                    3. Gặp bác sĩ chuyên khoa.
+                    4. Thực hiện xét nghiệm hoặc chẩn đoán hình ảnh nếu bác sĩ chỉ định.
+                    5. Nhận kết luận và tư vấn sau khám.</textarea>
                     <label class="block text-xs font-semibold">Lưu ý riêng</label>
                     <textarea name="luu_y" rows="2" class="w-full p-3 border rounded-xl text-sm" placeholder="Nhập lưu ý riêng cho bệnh nhân nếu có..."></textarea>
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Xác nhận lịch và gửi phiếu khám</button>

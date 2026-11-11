@@ -1,3 +1,4 @@
+
 <?php
 class LichKham {
     private $db;
@@ -24,14 +25,16 @@ class LichKham {
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // Lấy lịch khám của một bệnh nhân
+    // Lấy danh sách lịch khám của một bệnh nhân
     public function getByNguoiDung($ma_nguoi_dung) {
-        $sql = "SELECT lk.*, bs.ten_bac_si, ck.ten_chuyen_khoa
+        $sql = "SELECT lk.*, 
+                       bs.ten_bac_si, 
+                       ck.ten_chuyen_khoa
                 FROM lich_kham lk
                 LEFT JOIN bac_si bs
-                ON bs.ma_bac_si = lk.ma_bac_si
+                    ON bs.ma_bac_si = lk.ma_bac_si
                 LEFT JOIN chuyen_khoa ck
-                ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
+                    ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
                 WHERE lk.ma_nguoi_dung = :ma_nguoi_dung
                 ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC";
 
@@ -42,5 +45,31 @@ class LichKham {
         ]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Lấy chi tiết phiếu khám của bệnh nhân
+    // Chỉ cho phép xem lịch đã được xác nhận
+    public function getChiTietPhieuKham($ma_lich_kham, $ma_nguoi_dung) {
+        $sql = "SELECT lk.*,
+                       bs.ten_bac_si,
+                       ck.ten_chuyen_khoa
+                FROM lich_kham lk
+                LEFT JOIN bac_si bs
+                    ON bs.ma_bac_si = lk.ma_bac_si
+                LEFT JOIN chuyen_khoa ck
+                    ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
+                WHERE lk.ma_lich_kham = :ma_lich_kham
+                AND lk.ma_nguoi_dung = :ma_nguoi_dung
+                AND lk.trang_thai = 'da_xac_nhan'
+                LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+
+        $stmt->execute([
+            ':ma_lich_kham' => $ma_lich_kham,
+            ':ma_nguoi_dung' => $ma_nguoi_dung
+        ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }
