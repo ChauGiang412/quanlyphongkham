@@ -1,3 +1,12 @@
+
+# Set PHP as the project language
 *.php linguist-language=PHP
-*.sql linguist-language=SQL
-*.jpg linguist-detectable=false# Refresh GitHub Linguist statistics
+
+# Exclude SQL files from language statistics
+*.sql linguist-detectable=false
+
+# Exclude images from language statistics
+*.jpg linguist-detectable=false
+*.jpeg linguist-detectable=false
+*.png linguist-detectable=false
+*.webp linguist-detectable=false
