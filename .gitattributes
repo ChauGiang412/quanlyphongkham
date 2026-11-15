@@ -1,10 +1,5 @@
-
-# PHP source files
-*.php linguist-language=PHP linguist-detectable=true
-
-# Exclude non-source files
-*.sql linguist-detectable=false
-*.jpg linguist-detectable=false
-*.jpeg linguist-detectable=false
-*.png linguist-detectable=false
-*.webp linguist-detectable=false
+views/admin.php linguist-language=PHP linguist-detectable=true
+views/bac_si.php linguist-language=PHP linguist-detectable=true
+views/benh_nhan.php linguist-language=PHP linguist-detectable=true
+views/footer.php linguist-language=PHP linguist-detectable=true
+views/them_bac_si.php linguist-language=PHP linguist-detectable=true
