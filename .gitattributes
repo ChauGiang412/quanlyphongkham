@@ -1,11 +1,9 @@
 
-# Set PHP as the project language
-*.php linguist-language=PHP
+# PHP source files
+*.php linguist-language=PHP linguist-detectable=true
 
-# Exclude SQL files from language statistics
+# Exclude non-source files
 *.sql linguist-detectable=false
-
-# Exclude images from language statistics
 *.jpg linguist-detectable=false
 *.jpeg linguist-detectable=false
 *.png linguist-detectable=false
