@@ -252,7 +252,6 @@ class AdminController
             'admin-benh-nhan' => '👥 Quản lý bệnh nhân',
             'admin-benh-nhan&view=ho-so-benh-an' => '🗂️ Quản lý hồ sơ bệnh án',
             'admin-danh-gia' => '⭐ Quản lý đánh giá',
-            'admin-thong-bao' => '🔔 Quản lý thông báo'
         ];
 
         echo '<!DOCTYPE html>
@@ -351,90 +350,332 @@ Elite Clinic
 
     public function dashboard(): void
     {
-        $queries = [
-            'Tổng bệnh nhân' =>
-                "SELECT COUNT(*) FROM nguoi_dung WHERE vai_tro='benh_nhan'",
+        try {
+            // 1. Thống kê tổng quan
+            $statistics = [
+                [
+                    'label' => 'Tổng bệnh nhân',
+                    'value' => (int)$this->db->query("SELECT COUNT(*) FROM nguoi_dung WHERE vai_tro='benh_nhan'")->fetchColumn(),
+                    'icon' => 'fa-users',
+                    'color' => 'blue',
+                    'description' => 'Tài khoản bệnh nhân'
+                ],
+                [
+                    'label' => 'Tổng bác sĩ',
+                    'value' => (int)$this->db->query("SELECT COUNT(*) FROM bac_si")->fetchColumn(),
+                    'icon' => 'fa-user-doctor',
+                    'color' => 'emerald',
+                    'description' => 'Đội ngũ bác sĩ'
+                ],
+                [
+                    'label' => 'Tổng lịch khám',
+                    'value' => (int)$this->db->query("SELECT COUNT(*) FROM lich_kham")->fetchColumn(),
+                    'icon' => 'fa-calendar-check',
+                    'color' => 'orange',
+                    'description' => 'Tất cả lịch hẹn'
+                ],
+                [
+                    'label' => 'Chờ xác nhận',
+                    'value' => (int)$this->db->query("SELECT COUNT(*) FROM lich_kham WHERE trang_thai='cho_xac_nhan'")->fetchColumn(),
+                    'icon' => 'fa-clock',
+                    'color' => 'red',
+                    'description' => 'Lịch khám cần xử lý'
+                ]
+            ];
 
-            'Tổng bác sĩ' =>
-                "SELECT COUNT(*) FROM bac_si",
+            $tongChuyenKhoa = (int)$this->db->query("SELECT COUNT(*) FROM chuyen_khoa")->fetchColumn();
+            $tongGoiKham = (int)$this->db->query("SELECT COUNT(*) FROM goi_kham")->fetchColumn();
 
-            'Tổng chuyên khoa' =>
-                "SELECT COUNT(*) FROM chuyen_khoa",
+            // 2. Lịch khám theo tháng trong năm hiện tại
+            $currentYear = (int)date('Y');
+            $monthlyQuery = $this->db->prepare(
+                "SELECT MONTH(ngay_kham) AS thang, COUNT(*) AS tong
+                 FROM lich_kham
+                 WHERE YEAR(ngay_kham)=?
+                 GROUP BY MONTH(ngay_kham)
+                 ORDER BY MONTH(ngay_kham)"
+            );
+            $monthlyQuery->execute([$currentYear]);
+            $monthlyData = array_fill(1, 12, 0);
+            foreach ($monthlyQuery->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $month = (int)$row['thang'];
+                if ($month >= 1 && $month <= 12) {
+                    $monthlyData[$month] = (int)$row['tong'];
+                }
+            }
 
-            'Tổng gói khám' =>
-                "SELECT COUNT(*) FROM goi_kham",
+            // 3. Tỷ lệ trạng thái lịch khám
+            $statusRows = $this->db->query(
+                "SELECT trang_thai, COUNT(*) AS tong
+                 FROM lich_kham
+                 GROUP BY trang_thai"
+            )->fetchAll(PDO::FETCH_ASSOC);
 
-            'Tổng lịch khám' =>
-                "SELECT COUNT(*) FROM lich_kham",
+            $statusLabelsMap = [
+                'cho_xac_nhan' => 'Chờ xác nhận',
+                'da_xac_nhan' => 'Đã xác nhận',
+                'da_kham' => 'Đã khám',
+                'da_huy' => 'Đã hủy'
+            ];
+            $statusColorsMap = [
+                'cho_xac_nhan' => '#F59E0B',
+                'da_xac_nhan' => '#3B82F6',
+                'da_kham' => '#10B981',
+                'da_huy' => '#EF4444'
+            ];
+            $statusLabels = [];
+            $statusValues = [];
+            $statusColors = [];
+            $statusTotals = [];
+            foreach ($statusRows as $row) {
+                $key = (string)$row['trang_thai'];
+                $statusLabels[] = $statusLabelsMap[$key] ?? $key;
+                $statusValues[] = (int)$row['tong'];
+                $statusColors[] = $statusColorsMap[$key] ?? '#94A3B8';
+                $statusTotals[$key] = (int)$row['tong'];
+            }
 
-            'Lịch chờ xác nhận' =>
-                "SELECT COUNT(*) FROM lich_kham WHERE trang_thai='cho_xac_nhan'"
-        ];
+            // 4. Lượt khám theo chuyên khoa (dùng khóa ma_chuyen_khoa của lich_kham)
+            $specialtyRows = $this->db->query(
+                "SELECT ck.ten_chuyen_khoa, COUNT(lk.ma_lich_kham) AS tong
+                 FROM chuyen_khoa ck
+                 LEFT JOIN lich_kham lk
+                    ON lk.ma_chuyen_khoa=ck.ma_chuyen_khoa
+                    AND lk.trang_thai <> 'da_huy'
+                 GROUP BY ck.ma_chuyen_khoa, ck.ten_chuyen_khoa
+                 ORDER BY tong DESC
+                 LIMIT 10"
+            )->fetchAll(PDO::FETCH_ASSOC);
+            $specialtyLabels = [];
+            $specialtyValues = [];
+            foreach ($specialtyRows as $row) {
+                $specialtyLabels[] = (string)$row['ten_chuyen_khoa'];
+                $specialtyValues[] = (int)$row['tong'];
+            }
 
-        $content = '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">';
+            // 5. Lịch khám mới nhất
+            $recentRows = $this->db->query(
+                "SELECT lk.ma_lich_kham, lk.ngay_kham, lk.gio_kham,
+                        lk.trang_thai, nd.ho_ten, bs.ten_bac_si,
+                        ck.ten_chuyen_khoa
+                 FROM lich_kham lk
+                 LEFT JOIN nguoi_dung nd ON nd.ma_nguoi_dung=lk.ma_nguoi_dung
+                 LEFT JOIN bac_si bs ON bs.ma_bac_si=lk.ma_bac_si
+                 LEFT JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa=lk.ma_chuyen_khoa
+                 ORDER BY lk.ma_lich_kham DESC
+                 LIMIT 8"
+            )->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($queries as $label => $sql) {
-            $number = (int)$this->db->query($sql)->fetchColumn();
+            $colorClasses = [
+                'blue' => ['icon' => 'bg-blue-50 text-blue-600', 'number' => 'text-blue-700'],
+                'emerald' => ['icon' => 'bg-emerald-50 text-emerald-600', 'number' => 'text-emerald-700'],
+                'orange' => ['icon' => 'bg-orange-50 text-orange-600', 'number' => 'text-orange-600'],
+                'red' => ['icon' => 'bg-red-50 text-red-600', 'number' => 'text-red-600']
+            ];
+
+            $content = '
+<div class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-emerald-600">Hệ thống y tế Elite Clinic</p>
+            <h2 class="text-2xl font-extrabold text-slate-900 mt-2">Tổng quan hoạt động</h2>
+            <p class="text-sm text-slate-500 mt-2">Theo dõi tình hình hoạt động và quản lý phòng khám.</p>
+        </div>
+        <a href="index.php?act=admin-lich-kham" class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition">
+            <i class="fa-solid fa-calendar-check"></i> Quản lý lịch khám
+        </a>
+    </section>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">';
+
+            foreach ($statistics as $item) {
+                $color = $colorClasses[$item['color']];
+                $content .= '
+        <article class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide text-slate-500">' . $this->e($item['label']) . '</p>
+                    <p class="text-3xl font-black mt-3 ' . $color['number'] . '">' . number_format($item['value']) . '</p>
+                    <p class="text-xs text-slate-400 mt-2">' . $this->e($item['description']) . '</p>
+                </div>
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-lg ' . $color['icon'] . '">
+                    <i class="fa-solid ' . $this->e($item['icon']) . '"></i>
+                </div>
+            </div>
+        </article>';
+            }
 
             $content .= '
-<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-<p class="text-sm text-slate-500 font-semibold">'
-                . $this->e($label)
-                . '</p>
-<p class="text-3xl font-black text-emerald-600 mt-3">'
-                . number_format($number)
-                . '</p>
-</div>';
-        }
+    </section>
 
-        $content .= '</div>';
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <article class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div><p class="text-xs font-bold text-slate-500 uppercase">Chuyên khoa</p><p class="text-2xl font-black text-slate-900 mt-2">' . number_format($tongChuyenKhoa) . '</p></div>
+            <div class="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center text-lg"><i class="fa-solid fa-hospital"></i></div>
+        </article>
+        <article class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div><p class="text-xs font-bold text-slate-500 uppercase">Gói khám sức khỏe</p><p class="text-2xl font-black text-slate-900 mt-2">' . number_format($tongGoiKham) . '</p></div>
+            <div class="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg"><i class="fa-solid fa-notes-medical"></i></div>
+        </article>
+    </section>
 
-        $recent = $this->db->query(
-            "SELECT lk.ma_lich_kham,lk.ngay_kham,lk.gio_kham,
-                    lk.trang_thai,nd.ho_ten,bs.ten_bac_si
-             FROM lich_kham lk
-             LEFT JOIN nguoi_dung nd
-                ON nd.ma_nguoi_dung=lk.ma_nguoi_dung
-             LEFT JOIN bac_si bs
-                ON bs.ma_bac_si=lk.ma_bac_si
-             ORDER BY lk.ma_lich_kham DESC
-             LIMIT 8"
-        )->fetchAll(PDO::FETCH_ASSOC);
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <article class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-5"><div><h3 class="font-extrabold text-slate-800">Thống kê lịch khám theo tháng</h3><p class="text-xs text-slate-400 mt-1">Số lượng lịch khám trong năm ' . $currentYear . '</p></div><span class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">' . $currentYear . '</span></div>
+            <div class="relative h-72"><canvas id="adminMonthlyChart"></canvas></div>
+        </article>
+        <article class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-extrabold text-slate-800">Trạng thái lịch khám</h3><p class="text-xs text-slate-400 mt-1 mb-5">Phân loại theo tình trạng xử lý</p>
+            <div class="relative h-64"><canvas id="adminStatusChart"></canvas></div>
+        </article>
+    </section>
 
-        $content .= '
-<div class="bg-white rounded-2xl border border-slate-100
-shadow-sm mt-7 overflow-x-auto">
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <article class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-extrabold text-slate-800">Lượt khám theo chuyên khoa</h3><p class="text-xs text-slate-400 mt-1 mb-5">Không tính các lịch đã hủy</p>
+            <div class="relative h-80"><canvas id="adminSpecialtyChart"></canvas></div>
+        </article>
+        <article class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-extrabold text-slate-800">Tình hình lịch khám</h3><p class="text-xs text-slate-400 mt-1">Tỷ lệ theo trạng thái hiện tại</p>
+            <div class="space-y-5 mt-7">';
 
-<div class="p-5 font-bold text-slate-900">
-Lịch khám mới nhất
+            $totalStatus = array_sum($statusValues);
+            $statusBarColors = [
+                'cho_xac_nhan' => 'bg-amber-500',
+                'da_xac_nhan' => 'bg-blue-500',
+                'da_kham' => 'bg-emerald-500',
+                'da_huy' => 'bg-red-500'
+            ];
+            foreach ($statusLabelsMap as $key => $label) {
+                $count = $statusTotals[$key] ?? 0;
+                $percentage = $totalStatus > 0 ? round($count / $totalStatus * 100, 1) : 0;
+                $barColor = $statusBarColors[$key];
+                $content .= '
+                <div>
+                    <div class="flex justify-between items-center mb-2"><span class="text-sm font-semibold text-slate-600">' . $this->e($label) . '</span><span class="text-sm font-bold text-slate-800">' . number_format($count) . ' (' . $percentage . '%)</span></div>
+                    <div class="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full ' . $barColor . '" style="width:' . $percentage . '%"></div></div>
+                </div>';
+            }
+
+            $content .= '
+            </div>
+            <div class="mt-8 pt-5 border-t border-slate-100 grid grid-cols-2 gap-4">
+                <div><p class="text-xs text-slate-400">Lịch khám năm ' . $currentYear . '</p><p class="text-xl font-black text-slate-800 mt-1">' . number_format(array_sum($monthlyData)) . '</p></div>
+                <div><p class="text-xs text-slate-400">Tổng lịch khám</p><p class="text-xl font-black text-slate-800 mt-1">' . number_format($totalStatus) . '</p></div>
+            </div>
+        </article>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-3"><div><h3 class="font-extrabold text-slate-800">Lịch khám mới nhất</h3><p class="text-xs text-slate-400 mt-1">Các lịch hẹn được tạo gần đây</p></div><a href="index.php?act=admin-lich-kham" class="text-sm font-bold text-emerald-600 hover:text-emerald-700">Xem tất cả <i class="fa-solid fa-arrow-right ml-1"></i></a></div>
+        <div class="overflow-x-auto"><table class="w-full text-sm text-left whitespace-nowrap">
+            <thead class="bg-slate-50 text-slate-500"><tr><th class="px-5 py-4">Mã lịch</th><th class="px-5 py-4">Bệnh nhân</th><th class="px-5 py-4">Bác sĩ</th><th class="px-5 py-4">Chuyên khoa</th><th class="px-5 py-4">Ngày khám</th><th class="px-5 py-4">Trạng thái</th></tr></thead><tbody>';
+
+            $statusBadge = [
+                'cho_xac_nhan' => 'bg-amber-50 text-amber-700',
+                'da_xac_nhan' => 'bg-blue-50 text-blue-700',
+                'da_kham' => 'bg-emerald-50 text-emerald-700',
+                'da_huy' => 'bg-red-50 text-red-700'
+            ];
+            foreach ($recentRows as $row) {
+                $status = (string)$row['trang_thai'];
+                $badgeClass = $statusBadge[$status] ?? 'bg-slate-100 text-slate-600';
+                $statusText = $statusLabelsMap[$status] ?? $status;
+                $date = !empty($row['ngay_kham']) ? date('d/m/Y', strtotime($row['ngay_kham'])) : '—';
+                $content .= '
+                <tr class="border-t border-slate-100 hover:bg-slate-50 transition">
+                    <td class="px-5 py-4 font-bold text-slate-700">#' . (int)$row['ma_lich_kham'] . '</td>
+                    <td class="px-5 py-4 font-semibold text-slate-800">' . $this->e($row['ho_ten'] ?? 'Chưa có') . '</td>
+                    <td class="px-5 py-4 text-slate-600">' . $this->e($row['ten_bac_si'] ?? 'Chưa phân công') . '</td>
+                    <td class="px-5 py-4 text-slate-600">' . $this->e($row['ten_chuyen_khoa'] ?? 'Chưa có') . '</td>
+                    <td class="px-5 py-4 text-slate-600">' . $this->e($date) . ' - ' . $this->e($row['gio_kham'] ?? '') . '</td>
+                    <td class="px-5 py-4"><span class="inline-flex px-3 py-1.5 rounded-full text-xs font-bold ' . $badgeClass . '">' . $this->e($statusText) . '</span></td>
+                </tr>';
+            }
+            if (!$recentRows) {
+                $content .= '<tr><td colspan="6" class="px-5 py-10 text-center text-slate-400">Chưa có lịch khám nào.</td></tr>';
+            }
+
+            $jsonFlags = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT;
+            $monthlyJson = json_encode(array_values($monthlyData), $jsonFlags);
+            $statusLabelsJson = json_encode($statusLabels, $jsonFlags);
+            $statusValuesJson = json_encode($statusValues, $jsonFlags);
+            $statusColorsJson = json_encode($statusColors, $jsonFlags);
+            $specialtyLabelsJson = json_encode($specialtyLabels, $jsonFlags);
+            $specialtyValuesJson = json_encode($specialtyValues, $jsonFlags);
+
+            $content .= '
+            </tbody></table></div>
+    </section>
 </div>
 
-<table class="w-full text-sm text-left">
-<thead class="bg-slate-50">
-<tr>
-<th class="p-4">Mã lịch</th>
-<th class="p-4">Bệnh nhân</th>
-<th class="p-4">Bác sĩ</th>
-<th class="p-4">Ngày khám</th>
-<th class="p-4">Trạng thái</th>
-</tr>
-</thead>
-<tbody>';
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const monthlyData = ' . $monthlyJson . ';
+    const statusLabels = ' . $statusLabelsJson . ';
+    const statusValues = ' . $statusValuesJson . ';
+    const statusColors = ' . $statusColorsJson . ';
+    const specialtyLabels = ' . $specialtyLabelsJson . ';
+    const specialtyValues = ' . $specialtyValuesJson . ';
 
-        foreach ($recent as $r) {
-            $content .= '<tr class="border-t">
-<td class="p-4">#' . (int)$r['ma_lich_kham'] . '</td>
-<td class="p-4">' . $this->e($r['ho_ten'] ?? '') . '</td>
-<td class="p-4">' . $this->e($r['ten_bac_si'] ?? '') . '</td>
-<td class="p-4">' . $this->e($r['ngay_kham']) . ' '
-                . $this->e($r['gio_kham']) . '</td>
-<td class="p-4">' . $this->e($r['trang_thai']) . '</td>
-</tr>';
+    if (typeof Chart === "undefined") return;
+
+    const monthlyCanvas = document.getElementById("adminMonthlyChart");
+    if (monthlyCanvas) {
+        new Chart(monthlyCanvas, {
+            type: "bar",
+            data: {
+                labels: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"],
+                datasets: [{ label: "Số lịch khám", data: monthlyData, backgroundColor: "#3B82F6", borderRadius: 7, maxBarThickness: 36 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#F1F5F9" } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    const statusCanvas = document.getElementById("adminStatusChart");
+    if (statusCanvas) {
+        new Chart(statusCanvas, {
+            type: "doughnut",
+            data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: statusColors, borderWidth: 3, borderColor: "#FFFFFF", hoverOffset: 7 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: "68%",
+                plugins: { legend: { position: "bottom", labels: { usePointStyle: true, padding: 16, font: { size: 11 } } } }
+            }
+        });
+    }
+
+    const specialtyCanvas = document.getElementById("adminSpecialtyChart");
+    if (specialtyCanvas) {
+        new Chart(specialtyCanvas, {
+            type: "bar",
+            data: { labels: specialtyLabels, datasets: [{ label: "Lượt khám", data: specialtyValues, backgroundColor: "#10B981", borderRadius: 6, maxBarThickness: 34 }] },
+            options: {
+                indexAxis: "y", responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#F1F5F9" } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+});
+</script>';
+
+            $this->render('Dashboard tổng quan', $content);
+        } catch (Throwable $e) {
+            error_log('Admin dashboard error: ' . $e->getMessage());
+            $content = '<div class="bg-white border border-red-200 rounded-2xl p-6"><h2 class="text-lg font-bold text-red-600">Không thể tải Dashboard</h2><p class="text-sm text-slate-600 mt-2">Đã xảy ra lỗi khi lấy dữ liệu thống kê. Vui lòng kiểm tra cấu trúc database và nhật ký lỗi PHP.</p></div>';
+            $this->render('Dashboard tổng quan', $content);
         }
-
-        $content .= '</tbody></table></div>';
-
-        $this->render('Dashboard tổng quan', $content);
     }
 
     /* =====================================================
@@ -548,10 +789,14 @@ Tìm
 </button>
 </form>';
 
+        $content .= '<div class="flex justify-end mb-4"><a href="index.php?act=admin-chuyen-khoa&add=1" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-sm">+ Thêm chuyên khoa</a></div>';
+
+        $content .= '
+<dialog id="specialtyDialog" class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 shadow-2xl"><div class="flex justify-end px-6 pt-4"><button type="button" onclick="document.getElementById(\'specialtyDialog\').close()" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button></div>';
+
         $content .= '
 <form method="POST" enctype="multipart/form-data"
-class="bg-white p-6 rounded-2xl border border-slate-100
-shadow-sm space-y-4 mb-7">'
+class="bg-white p-6 rounded-2xl space-y-4">'
             . $this->csrfField()
             . '<input type="hidden" name="id" value="'
             . (int)($edit['ma_chuyen_khoa'] ?? 0) . '">
@@ -591,7 +836,7 @@ accept="image/jpeg,image/png,image/webp">
 class="text-slate-500 text-sm ml-3">Hủy sửa</a>';
         }
 
-        $content .= '</form>
+        $content .= '</form></dialog>
 <div class="bg-white rounded-2xl border border-slate-100
 shadow-sm overflow-x-auto">
 <table class="w-full text-sm text-left">
@@ -632,7 +877,7 @@ onsubmit="return confirm(\'Bạn chắc chắn muốn xóa?\')">'
 </td></tr>';
         }
 
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div><script>const specialtyParams = new URLSearchParams(window.location.search); if (specialtyParams.has("edit") || specialtyParams.has("add")) { const dialog = document.getElementById("specialtyDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
 
         $this->render('Quản lý chuyên khoa', $content);
     }
@@ -919,10 +1164,15 @@ onsubmit="return confirm(\'Bạn chắc chắn muốn xóa?\')">'
 Tìm
 </button></form>';
 
+        $content .= '<div class="flex justify-end mb-4"><a href="index.php?act=admin-bac-si&add=1" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-sm">+ Thêm bác sĩ</a></div>';
+
+        $content .= '<dialog id="doctorDialog" class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 shadow-2xl"><div class="flex justify-end px-6 pt-4"><button type="button" onclick="document.getElementById(\'doctorDialog\').close()" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button></div>';
+
         $content .= '<form method="POST" enctype="multipart/form-data"
-class="bg-white p-6 rounded-2xl border border-slate-100
-shadow-sm space-y-4 mb-7">'
+autocomplete="off" class="bg-white p-6 rounded-2xl space-y-4">'
             . $this->csrfField()
+            . '<input type="text" name="fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">'
+            . '<input type="password" name="fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">'
             . '<input type="hidden" name="id" value="'
             . (int)($edit['ma_bac_si'] ?? 0) . '">'
             . '<h2 class="font-bold">'
@@ -1008,7 +1258,7 @@ accept="image/jpeg,image/png,image/webp">
 class="text-slate-500 text-sm ml-3">Hủy sửa</a>';
         }
 
-        $content .= '</form>
+        $content .= '</form></dialog>
 <div class="bg-white rounded-2xl border border-slate-100
 shadow-sm overflow-x-auto">
 <table class="w-full text-sm text-left">
@@ -1047,7 +1297,38 @@ onsubmit="return confirm(\'Xóa bác sĩ này?\')">'
 </td></tr>';
         }
 
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div><script>
+(function () {
+    const params = new URLSearchParams(window.location.search);
+    const dialog = document.getElementById("doctorDialog");
+    if ((params.has("edit") || params.has("add")) && dialog && !dialog.open) {
+        dialog.showModal();
+    }
+
+    const form = dialog ? dialog.querySelector("form") : null;
+    if (!form) return;
+
+    form.setAttribute("autocomplete", "off");
+    const email = form.querySelector("input[name=\"email\"]");
+    const password = form.querySelector("input[name=\"mat_khau\"]");
+
+    if (email) {
+        email.setAttribute("autocomplete", "new-email");
+        email.setAttribute("readonly", "readonly");
+        email.addEventListener("focus", function () {
+            this.removeAttribute("readonly");
+        }, { once: true });
+    }
+
+    if (password) {
+        password.setAttribute("autocomplete", "new-password");
+        password.setAttribute("readonly", "readonly");
+        password.addEventListener("focus", function () {
+            this.removeAttribute("readonly");
+        }, { once: true });
+    }
+})();
+</script>';
 
         $this->render('Quản lý bác sĩ', $content);
     }
@@ -1252,9 +1533,12 @@ onsubmit="return confirm(\'Xóa bác sĩ này?\')">'
 Tìm
 </button></form>';
 
+        $content .= '<div class="flex justify-end mb-4"><a href="index.php?act=admin-goi-kham&add=1" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-sm">+ Thêm gói khám</a></div>';
+
+        $content .= '<dialog id="packageDialog" class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 shadow-2xl"><div class="flex justify-end px-6 pt-4"><button type="button" onclick="document.getElementById(\'packageDialog\').close()" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button></div>';
+
         $content .= '<form method="POST" enctype="multipart/form-data"
-class="bg-white p-6 rounded-2xl border border-slate-100
-shadow-sm space-y-4 mb-7">'
+class="bg-white p-6 rounded-2xl space-y-4">'
             . $this->csrfField()
             . '<input type="hidden" name="id" value="'
             . (int)($edit['ma_goi_kham'] ?? 0) . '">'
@@ -1332,7 +1616,7 @@ accept="image/jpeg,image/png,image/webp">
 class="text-slate-500 text-sm ml-3">Hủy sửa</a>';
         }
 
-        $content .= '</form>
+        $content .= '</form></dialog>
 <div class="bg-white rounded-2xl border border-slate-100
 shadow-sm overflow-x-auto">
 <table class="w-full text-sm text-left">
@@ -1374,7 +1658,7 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
 </td></tr>';
         }
 
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div><script>const packageParams = new URLSearchParams(window.location.search); if (packageParams.has("edit") || packageParams.has("add")) { const dialog = document.getElementById("packageDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
 
         $this->render('Quản lý gói khám', $content);
     }
@@ -2228,10 +2512,12 @@ Chưa có đánh giá nào trong hệ thống.
              LIMIT 100"
         )->fetchAll(PDO::FETCH_ASSOC);
 
-        $content = '
-<form method="POST"
-class="bg-white p-6 rounded-2xl
-border border-slate-100 shadow-sm space-y-4 mb-7">'
+        $content = '<div class="flex justify-end mb-4"><button type="button" onclick="document.getElementById(\'notificationDialog\').showModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-sm">+ Soạn thông báo</button></div>';
+
+        $content .= '<dialog id="notificationDialog" class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 shadow-2xl"><div class="flex items-center justify-between px-6 pt-6"><h2 class="text-lg font-bold">Soạn thông báo mới</h2><button type="button" onclick="document.getElementById(\'notificationDialog\').close()" class="text-slate-400 hover:text-slate-700 text-2xl">&times;</button></div>';
+
+        $content .= '
+<form method="POST" class="bg-white p-6 rounded-2xl space-y-4">'
             . $this->csrfField()
             . $this->input(
                 'tieu_de',
@@ -2264,7 +2550,7 @@ class="w-full p-3 border rounded-xl text-sm">
 
         $content .= '</select>'
             . $this->button('Gửi thông báo')
-            . '</form>
+            . '</form></dialog>
 
 <div class="bg-white rounded-2xl
 border border-slate-100 shadow-sm overflow-x-auto">

@@ -68,6 +68,16 @@ switch ($act) {
 
 
     // =====================================
+    // QUÊN MẬT KHẨU
+    // =====================================
+
+    case 'forgot-password':
+        $controller = new AuthController();
+        $controller->forgotPassword();
+        break;
+
+
+    // =====================================
     // CHỨC NĂNG BỆNH NHÂN
     // =====================================
 

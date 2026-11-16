@@ -117,6 +117,20 @@ CREATE TABLE phieu_kham_benh (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS password_reset_otps (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ma_nguoi_dung VARCHAR(50) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    otp_hash VARCHAR(255) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    verified_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_reset_email (email),
+    INDEX idx_reset_user (ma_nguoi_dung),
+    INDEX idx_reset_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO nguoi_dung (ma_nguoi_dung, ho_ten, email, mat_khau, so_dien_thoai, gioi_tinh, ngay_sinh, dia_chi, vai_tro) VALUES
 (1, 'Quản Trị Viên Hệ Thống', 'admin@medbooking.vn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '0901111222', 'Khac', '1990-01-01', 'Hà Nội', 'quan_tri'),
 (2, 'BS.CKI Phạm Minh Quân', 'dr.quan@medbooking.vn', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '0944444444', 'Nam', '1985-05-15', 'Đống Đa, Hà Nội', 'bac_si'),

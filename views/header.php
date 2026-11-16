@@ -7,6 +7,8 @@ if (session_status() === PHP_SESSION_NONE) {
 $user = $_SESSION['user'] ?? null;
 $role = $user['vai_tro'] ?? '';
 $name = $user['ho_ten'] ?? 'Tài khoản';
+$currentAct = $_GET['act'] ?? 'home';
+$isHomePage = ($currentAct === 'home');
 ?>
 
 <!DOCTYPE html>
@@ -17,7 +19,6 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
 
     <title>Elite Clinic - Hệ Thống Y Tế</title>
 
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script>
@@ -37,11 +38,9 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
         }
     </script>
 
-    <!-- Font Awesome -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Alpine JS -->
     <script defer
             src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
@@ -62,26 +61,40 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-20 flex items-center justify-between gap-4">
 
-        <!-- LOGO -->
-        <a href="index.php?act=home"
-           class="flex items-center space-x-3 group shrink-0">
+        <!-- BÊN TRÁI: NÚT DANH MỤC + LOGO -->
+        <div class="flex items-center gap-3 shrink-0">
 
-            <div class="w-11 h-11 rounded-2xl bg-brand-600 text-white flex items-center justify-center text-xl shadow-md group-hover:bg-brand-700 transition">
-                <i class="fa-solid fa-hospital"></i>
-            </div>
+            <?php if ($isHomePage): ?>
+                <button
+                    type="button"
+                    onclick="window.dispatchEvent(new CustomEvent('toggle-home-sidebar'))"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 hover:bg-brand-50 hover:text-brand-600 transition"
+                    title="Mở hoặc đóng danh mục">
 
-            <div>
-                <span class="text-lg font-extrabold text-slate-900 tracking-tight block">
-                    Elite Clinic
-                </span>
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+            <?php endif; ?>
 
-                <span class="text-[10px] text-brand-600 font-bold uppercase tracking-widest block">
-                    Hệ Thống Y Tế 5 Sao
-                </span>
-            </div>
-        </a>
+            <a href="index.php?act=home"
+               class="flex items-center space-x-3 group">
 
-        <!-- MENU -->
+                <div class="w-11 h-11 rounded-2xl bg-brand-600 text-white flex items-center justify-center text-xl shadow-md group-hover:bg-brand-700 transition">
+                    <i class="fa-solid fa-hospital"></i>
+                </div>
+
+                <div>
+                    <span class="text-lg font-extrabold text-slate-900 tracking-tight block">
+                        Elite Clinic
+                    </span>
+
+                    <span class="text-[10px] text-brand-600 font-bold uppercase tracking-widest block">
+                        Hệ Thống Y Tế 5 Sao
+                    </span>
+                </div>
+            </a>
+        </div>
+
+        <!-- MENU ĐIỀU HƯỚNG NGANG -->
         <nav class="hidden lg:flex items-center gap-6 text-xs font-bold text-slate-600">
 
             <a href="index.php?act=home"
@@ -123,7 +136,6 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
 
                     <a href="index.php?act=bac-si-dashboard"
                        class="hidden sm:flex items-center gap-2 bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-xs px-4 py-3 rounded-xl border border-teal-100 transition">
-
                         <i class="fa-solid fa-house-medical"></i>
                         Dashboard bác sĩ
                     </a>
@@ -132,14 +144,13 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
 
                     <a href="index.php?act=admin-dashboard"
                        class="hidden sm:flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-3 rounded-xl transition">
-
                         <i class="fa-solid fa-shield-halved"></i>
                         Trang Quản Trị
                     </a>
 
                 <?php endif; ?>
 
-                <!-- DROPDOWN -->
+                <!-- DROPDOWN TÀI KHOẢN -->
                 <div class="relative" x-data="{ open: false }">
 
                     <button type="button"
@@ -158,6 +169,7 @@ $name = $user['ho_ten'] ?? 'Tài khoản';
                     <div x-cloak
                          x-show="open"
                          @click.outside="open = false"
+                         x-transition
                          class="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 text-xs font-semibold text-slate-700 z-50">
 
                         <?php if ($role === 'bac_si'): ?>
