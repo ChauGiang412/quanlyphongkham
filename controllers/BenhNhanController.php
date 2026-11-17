@@ -179,7 +179,6 @@ class BenhNhanController
         $chuyenKhoaModel = new ChuyenKhoa($this->db);
         $bacSiModel = new BacSi($this->db);
 
-        // Tên biến phải khớp với View
         $chiTiet = $chuyenKhoaModel->getChuyenKhoaById($id);
 
         if (!$chiTiet) {
@@ -210,7 +209,6 @@ class BenhNhanController
 
         $bacSiModel = new BacSi($this->db);
 
-        // Tên biến phải khớp với View
         $chiTiet = $bacSiModel->getDoctorById($id);
 
         if (!$chiTiet) {
@@ -756,7 +754,139 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 14. HỒ SƠ CÁ NHÂN
+    // 14. GỬI ĐÁNH GIÁ BÁC SĨ
+    // =====================================================
+
+    public function guiDanhGia()
+    {
+        // Chỉ xử lý khi gửi form bằng POST
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: index.php?act=lich-su');
+            exit();
+        }
+
+        // Kiểm tra đăng nhập
+        $maNguoiDung = $this->requireLogin();
+
+        // Lấy dữ liệu từ form
+        $maLichKham = filter_var(
+            $_POST['ma_lich_kham'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        $soSao = filter_var(
+            $_POST['so_sao'] ?? null,
+            FILTER_VALIDATE_INT
+        );
+
+        $noiDung = trim($_POST['noi_dung'] ?? '');
+
+        // Kiểm tra mã lịch khám
+        if (!$maLichKham) {
+            $this->redirectWithMessage(
+                'Thông tin lịch khám không hợp lệ!',
+                'index.php?act=lich-su'
+            );
+        }
+
+        // Kiểm tra số sao
+        if ($soSao === false || $soSao < 1 || $soSao > 5) {
+            $this->redirectWithMessage(
+                'Vui lòng chọn mức đánh giá từ 1 đến 5 sao!',
+                'index.php?act=chi-tiet-lich&id=' . $maLichKham
+            );
+        }
+
+        try {
+            // Kiểm tra lịch khám thuộc bệnh nhân hiện tại
+            // và đã hoàn thành
+            $sql = "SELECT ma_lich_kham, ma_bac_si
+                    FROM lich_kham
+                    WHERE ma_lich_kham = :ma_lich_kham
+                      AND ma_nguoi_dung = :ma_nguoi_dung
+                      AND trang_thai = 'da_kham'
+                    LIMIT 1";
+
+            $stmt = $this->db->prepare($sql);
+
+            $stmt->execute([
+                ':ma_lich_kham' => $maLichKham,
+                ':ma_nguoi_dung' => $maNguoiDung
+            ]);
+
+            $lichKham = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$lichKham) {
+                $this->redirectWithMessage(
+                    'Lịch khám không tồn tại, không thuộc tài khoản của bạn hoặc chưa hoàn thành!',
+                    'index.php?act=lich-su'
+                );
+            }
+
+            // Kiểm tra đã đánh giá lịch khám này chưa
+            $sqlCheck = "SELECT ma_danh_gia
+                         FROM danh_gia
+                         WHERE ma_lich_kham = :ma_lich_kham
+                           AND ma_nguoi_dung = :ma_nguoi_dung
+                         LIMIT 1";
+
+            $stmtCheck = $this->db->prepare($sqlCheck);
+
+            $stmtCheck->execute([
+                ':ma_lich_kham' => $maLichKham,
+                ':ma_nguoi_dung' => $maNguoiDung
+            ]);
+
+            if ($stmtCheck->fetch(PDO::FETCH_ASSOC)) {
+                $this->redirectWithMessage(
+                    'Bạn đã gửi đánh giá cho lịch khám này rồi!',
+                    'index.php?act=chi-tiet-lich&id=' . $maLichKham
+                );
+            }
+
+            // Thêm đánh giá vào cơ sở dữ liệu
+            $sqlInsert = "INSERT INTO danh_gia (
+                            ma_nguoi_dung,
+                            ma_bac_si,
+                            ma_lich_kham,
+                            so_sao,
+                            noi_dung
+                          )
+                          VALUES (
+                            :ma_nguoi_dung,
+                            :ma_bac_si,
+                            :ma_lich_kham,
+                            :so_sao,
+                            :noi_dung
+                          )";
+
+            $stmtInsert = $this->db->prepare($sqlInsert);
+
+            $stmtInsert->execute([
+                ':ma_nguoi_dung' => $maNguoiDung,
+                ':ma_bac_si' => $lichKham['ma_bac_si'],
+                ':ma_lich_kham' => $maLichKham,
+                ':so_sao' => $soSao,
+                ':noi_dung' => $noiDung !== '' ? $noiDung : null
+            ]);
+
+            $this->redirectWithMessage(
+                'Gửi đánh giá thành công! Cảm ơn bạn đã chia sẻ trải nghiệm.',
+                'index.php?act=chi-tiet-lich&id=' . $maLichKham
+            );
+
+        } catch (PDOException $e) {
+            error_log('Lỗi gửi đánh giá: ' . $e->getMessage());
+
+            $this->redirectWithMessage(
+                'Không thể gửi đánh giá. Vui lòng thử lại sau!',
+                'index.php?act=chi-tiet-lich&id=' . $maLichKham
+            );
+        }
+    }
+
+    // =====================================================
+    // 15. HỒ SƠ CÁ NHÂN
     // =====================================================
 
     public function hoSo()
@@ -787,7 +917,7 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 15. CẬP NHẬT HỒ SƠ CÁ NHÂN
+    // 16. CẬP NHẬT HỒ SƠ CÁ NHÂN
     // =====================================================
 
     public function capNhatHoSo()
@@ -871,7 +1001,7 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 16. FORM ĐĂNG NHẬP
+    // 17. FORM ĐĂNG NHẬP
     // =====================================================
 
     public function formDangNhap()
@@ -887,7 +1017,7 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 17. XỬ LÝ ĐĂNG NHẬP
+    // 18. XỬ LÝ ĐĂNG NHẬP
     // =====================================================
 
     public function xuLyDangNhap()
@@ -957,7 +1087,6 @@ class BenhNhanController
 
             $_SESSION['user'] = $user;
 
-            // Đồng bộ mật khẩu đã mã hóa vào session
             if (isset($newHash)) {
                 $_SESSION['user']['mat_khau'] = $newHash;
             }
@@ -975,7 +1104,7 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 18. FORM ĐĂNG KÝ
+    // 19. FORM ĐĂNG KÝ
     // =====================================================
 
     public function formDangKy()
@@ -991,7 +1120,7 @@ class BenhNhanController
     }
 
     // =====================================================
-    // 19. XỬ LÝ ĐĂNG KÝ
+    // 20. XỬ LÝ ĐĂNG KÝ
     // =====================================================
 
     public function xuLyDangKy()
