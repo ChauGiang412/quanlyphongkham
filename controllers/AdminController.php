@@ -1841,7 +1841,6 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
             if (!in_array($lich['trang_thai'], $transitions[$newStatus] ?? [], true)) {
                 throw new RuntimeException('Không thể chuyển trạng thái lịch khám này.');
             }
-
             if ($newStatus === 'da_xac_nhan') {
                 $huongDan = trim($_POST['huong_dan_chuan_bi'] ?? '');
                 $quyTrinh = trim($_POST['quy_trinh_kham'] ?? '');
