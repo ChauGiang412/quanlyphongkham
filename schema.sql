@@ -12,6 +12,7 @@ CREATE TABLE nguoi_dung (
     ngay_sinh DATE NULL,
     dia_chi VARCHAR(255) NULL,
     vai_tro ENUM('benh_nhan', 'bac_si', 'quan_tri') NOT NULL DEFAULT 'benh_nhan',
+    trang_thai_tai_khoan ENUM('hoat_dong', 'bi_khoa') NOT NULL DEFAULT 'hoat_dong',
     ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -91,6 +92,17 @@ CREATE TABLE danh_gia (
     FOREIGN KEY (ma_lich_kham) REFERENCES lich_kham(ma_lich_kham)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE thong_bao (
+    ma_thong_bao INT AUTO_INCREMENT PRIMARY KEY,
+    ma_nguoi_dung INT NOT NULL,
+    tieu_de VARCHAR(150) NOT NULL,
+    noi_dung TEXT NOT NULL,
+    loai_thong_bao ENUM('lich_kham', 'nhac_nho', 'he_thong') NOT NULL,
+    trang_thai ENUM('chua_doc', 'da_doc') DEFAULT 'chua_doc',
+    ngay_tao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (ma_nguoi_dung) REFERENCES nguoi_dung(ma_nguoi_dung)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE phieu_kham_benh (
     ma_phieu_kham INT AUTO_INCREMENT PRIMARY KEY,
@@ -206,3 +218,9 @@ ADD COLUMN trang_thai_phieu
 
 ALTER TABLE phieu_kham_benh
 MODIFY COLUMN chuan_doan TEXT NULL;
+-- Thêm trạng thái tài khoản để Admin có thể khóa / mở khóa người dùng.
+-- Chạy một lần trên database đã có sẵn (có thể bỏ qua: trang
+-- "Quản lý người dùng" sẽ tự thêm cột này nếu chưa có).
+ALTER TABLE nguoi_dung
+    ADD COLUMN trang_thai_tai_khoan ENUM('hoat_dong', 'bi_khoa')
+    NOT NULL DEFAULT 'hoat_dong' AFTER vai_tro;

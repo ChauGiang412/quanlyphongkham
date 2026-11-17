@@ -142,6 +142,8 @@ class AuthController
 
                         if (!$passwordValid) {
                             $error = 'Email hoặc mật khẩu không chính xác.';
+                        } elseif (($user['trang_thai_tai_khoan'] ?? 'hoat_dong') === 'bi_khoa') {
+                            $error = 'Tài khoản đã bị khóa. Vui lòng liên hệ phòng khám để được hỗ trợ.';
                         } else {
                             session_regenerate_id(true);
 
