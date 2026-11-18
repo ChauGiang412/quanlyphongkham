@@ -26,25 +26,36 @@ class LichKham {
     }
 
     // Lấy danh sách lịch khám của một bệnh nhân
-    public function getByNguoiDung($ma_nguoi_dung) {
-        $sql = "SELECT lk.*, 
-                       bs.ten_bac_si, 
+    public function getByNguoiDung($ma_nguoi_dung, $limit = null, $offset = 0) {
+        $sql = "SELECT lk.*,
+                       bs.ten_bac_si,
                        ck.ten_chuyen_khoa
                 FROM lich_kham lk
-                LEFT JOIN bac_si bs
-                    ON bs.ma_bac_si = lk.ma_bac_si
-                LEFT JOIN chuyen_khoa ck
-                    ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
+                LEFT JOIN bac_si bs ON bs.ma_bac_si = lk.ma_bac_si
+                LEFT JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
                 WHERE lk.ma_nguoi_dung = :ma_nguoi_dung
                 ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC";
 
+        if ($limit !== null) {
+            $sql .= " LIMIT :limit OFFSET :offset";
+        }
+
         $stmt = $this->db->prepare($sql);
-
-        $stmt->execute([
-            ':ma_nguoi_dung' => $ma_nguoi_dung
-        ]);
-
+        $stmt->bindValue(':ma_nguoi_dung', (int)$ma_nguoi_dung, PDO::PARAM_INT);
+        if ($limit !== null) {
+            $stmt->bindValue(':limit', max(1, (int)$limit), PDO::PARAM_INT);
+            $stmt->bindValue(':offset', max(0, (int)$offset), PDO::PARAM_INT);
+        }
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countByNguoiDung($ma_nguoi_dung) {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM lich_kham WHERE ma_nguoi_dung = :ma_nguoi_dung"
+        );
+        $stmt->execute([':ma_nguoi_dung' => (int)$ma_nguoi_dung]);
+        return (int)$stmt->fetchColumn();
     }
 
     // Lấy chi tiết phiếu khám của bệnh nhân

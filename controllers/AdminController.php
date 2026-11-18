@@ -349,6 +349,44 @@ Elite Clinic
        1. DASHBOARD
     ===================================================== */
 
+    /**
+     * Tạo thanh phân trang dùng chung cho các danh sách quản trị.
+     * Giữ nguyên từ khóa tìm kiếm và các bộ lọc trên URL.
+     */
+    private function paginationLinks(int $total, int $page, int $perPage = 5): string
+    {
+        $totalPages = max(1, (int)ceil($total / max(1, $perPage)));
+        if ($totalPages <= 1) {
+            return '<div class="mt-5 text-xs text-slate-500">Tổng cộng ' . $total . ' bản ghi.</div>';
+        }
+
+        $params = $_GET;
+        $html = '<nav class="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Phân trang">';
+        $html .= '<span class="text-xs text-slate-500">Trang ' . $page . ' / ' . $totalPages . ' · ' . $total . ' bản ghi</span>';
+        $html .= '<div class="flex flex-wrap gap-1">';
+        $makeLink = static function (int $p, string $label, bool $disabled = false) use ($params): string {
+            if ($disabled) {
+                return '<span class="px-3 py-2 rounded-lg border text-xs text-slate-300 bg-slate-50">' . $label . '</span>';
+            }
+            $query = http_build_query(array_merge($params, ['page' => $p]));
+            return '<a class="px-3 py-2 rounded-lg border text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-300" href="index.php?' . htmlspecialchars($query, ENT_QUOTES, 'UTF-8') . '">' . $label . '</a>';
+        };
+        $html .= $makeLink(1, 'Đầu', $page <= 1);
+        $html .= $makeLink(max(1, $page - 1), 'Trước', $page <= 1);
+        $start = max(1, $page - 2);
+        $end = min($totalPages, $page + 2);
+        for ($p = $start; $p <= $end; $p++) {
+            $query = http_build_query(array_merge($params, ['page' => $p]));
+            $class = $p === $page
+                ? 'px-3 py-2 rounded-lg border border-emerald-600 bg-emerald-600 text-white text-xs font-bold'
+                : 'px-3 py-2 rounded-lg border text-xs font-semibold text-slate-700 hover:bg-emerald-50';
+            $html .= '<a class="' . $class . '" href="index.php?' . htmlspecialchars($query, ENT_QUOTES, 'UTF-8') . '">' . $p . '</a>';
+        }
+        $html .= $makeLink(min($totalPages, $page + 1), 'Sau', $page >= $totalPages);
+        $html .= $makeLink($totalPages, 'Cuối', $page >= $totalPages);
+        return $html . '</div></nav>';
+    }
+
     public function dashboard(): void
     {
         try {
@@ -772,13 +810,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
         $search = trim($_GET['q'] ?? '');
 
+        $like = '%' . $search . '%';
+        $countQuery = $this->db->prepare("SELECT COUNT(*) FROM chuyen_khoa WHERE ten_chuyen_khoa LIKE ?");
+        $countQuery->execute([$like]);
+        $totalRows = (int)$countQuery->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
         $q = $this->db->prepare(
-            "SELECT * FROM chuyen_khoa
-             WHERE ten_chuyen_khoa LIKE ?
-             ORDER BY ma_chuyen_khoa DESC"
+            "SELECT * FROM chuyen_khoa WHERE ten_chuyen_khoa LIKE ?
+             ORDER BY ma_chuyen_khoa DESC LIMIT {$perPage} OFFSET {$offset}"
         );
-
-        $q->execute(['%' . $search . '%']);
+        $q->execute([$like]);
         $rows = $q->fetchAll(PDO::FETCH_ASSOC);
 
         $content = '
@@ -878,7 +922,7 @@ onsubmit="return confirm(\'Bạn chắc chắn muốn xóa?\')">'
 </td></tr>';
         }
 
-        $content .= '</tbody></table></div><script>const specialtyParams = new URLSearchParams(window.location.search); if (specialtyParams.has("edit") || specialtyParams.has("add")) { const dialog = document.getElementById("specialtyDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
+        $content .= '</tbody></table></div>' . $this->paginationLinks($totalRows, $page, $perPage) . '<script>const specialtyParams = new URLSearchParams(window.location.search); if (specialtyParams.has("edit") || specialtyParams.has("add")) { const dialog = document.getElementById("specialtyDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
 
         $this->render('Quản lý chuyên khoa', $content);
     }
@@ -1143,19 +1187,28 @@ onsubmit="return confirm(\'Bạn chắc chắn muốn xóa?\')">'
 
         $search = trim($_GET['q'] ?? '');
 
-        $q = $this->db->prepare(
-            "SELECT bs.*,ck.ten_chuyen_khoa,
-                    nd.email,nd.so_dien_thoai
-             FROM bac_si bs
-             JOIN chuyen_khoa ck
-                ON ck.ma_chuyen_khoa=bs.ma_chuyen_khoa
-             JOIN nguoi_dung nd
-                ON nd.ma_nguoi_dung=bs.ma_nguoi_dung
-             WHERE bs.ten_bac_si LIKE ?
-             ORDER BY bs.ma_bac_si DESC"
+        $like = '%' . $search . '%';
+        $countQuery = $this->db->prepare(
+            "SELECT COUNT(*) FROM bac_si bs
+             JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa=bs.ma_chuyen_khoa
+             JOIN nguoi_dung nd ON nd.ma_nguoi_dung=bs.ma_nguoi_dung
+             WHERE bs.ten_bac_si LIKE ?"
         );
-
-        $q->execute(['%' . $search . '%']);
+        $countQuery->execute([$like]);
+        $totalRows = (int)$countQuery->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
+        $q = $this->db->prepare(
+            "SELECT bs.*,ck.ten_chuyen_khoa,nd.email,nd.so_dien_thoai
+             FROM bac_si bs
+             JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa=bs.ma_chuyen_khoa
+             JOIN nguoi_dung nd ON nd.ma_nguoi_dung=bs.ma_nguoi_dung
+             WHERE bs.ten_bac_si LIKE ?
+             ORDER BY bs.ma_bac_si DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $q->execute([$like]);
         $rows = $q->fetchAll(PDO::FETCH_ASSOC);
 
         $content = '<form method="GET" class="mb-5 flex gap-2">
@@ -1331,6 +1384,7 @@ onsubmit="return confirm(\'Xóa bác sĩ này?\')">'
 })();
 </script>';
 
+        $content .= $this->paginationLinks($totalRows, $page, $perPage);
         $this->render('Quản lý bác sĩ', $content);
     }
 
@@ -1516,15 +1570,21 @@ onsubmit="return confirm(\'Xóa bác sĩ này?\')">'
 
         $search = trim($_GET['q'] ?? '');
 
+        $like = '%' . $search . '%';
+        $countQuery = $this->db->prepare("SELECT COUNT(*) FROM goi_kham g WHERE g.ten_goi LIKE ?");
+        $countQuery->execute([$like]);
+        $totalRows = (int)$countQuery->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
         $q = $this->db->prepare(
-            "SELECT g.*,c.ten_chuyen_khoa
-             FROM goi_kham g
-             LEFT JOIN chuyen_khoa c
-             ON c.ma_chuyen_khoa=g.ma_chuyen_khoa
+            "SELECT g.*,c.ten_chuyen_khoa FROM goi_kham g
+             LEFT JOIN chuyen_khoa c ON c.ma_chuyen_khoa=g.ma_chuyen_khoa
              WHERE g.ten_goi LIKE ?
-             ORDER BY g.ma_goi_kham DESC"
+             ORDER BY g.ma_goi_kham DESC LIMIT {$perPage} OFFSET {$offset}"
         );
-        $q->execute(['%' . $search . '%']);
+        $q->execute([$like]);
         $rows = $q->fetchAll(PDO::FETCH_ASSOC);
 
         $content = '<form method="GET" class="mb-5 flex gap-2">
@@ -1659,7 +1719,7 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
 </td></tr>';
         }
 
-        $content .= '</tbody></table></div><script>const packageParams = new URLSearchParams(window.location.search); if (packageParams.has("edit") || packageParams.has("add")) { const dialog = document.getElementById("packageDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
+        $content .= '</tbody></table></div>' . $this->paginationLinks($totalRows, $page, $perPage) . '<script>const packageParams = new URLSearchParams(window.location.search); if (packageParams.has("edit") || packageParams.has("add")) { const dialog = document.getElementById("packageDialog"); if (dialog && !dialog.open) dialog.showModal(); }</script>';
 
         $this->render('Quản lý gói khám', $content);
     }
@@ -1713,23 +1773,29 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
         $status = $_GET['status'] ?? '';
 
         $valid = ['cho_xac_nhan', 'da_xac_nhan', 'da_kham', 'da_huy'];
-        $sql = "SELECT lk.*, nd.ho_ten, nd.so_dien_thoai,
-                       bs.ten_bac_si, ck.ten_chuyen_khoa,
-                       pk.ma_phieu_kham
-                FROM lich_kham lk
+        $fromWhere = " FROM lich_kham lk
                 LEFT JOIN nguoi_dung nd ON nd.ma_nguoi_dung = lk.ma_nguoi_dung
                 LEFT JOIN bac_si bs ON bs.ma_bac_si = lk.ma_bac_si
                 LEFT JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
                 LEFT JOIN phieu_kham_benh pk ON pk.ma_lich_kham = lk.ma_lich_kham
                 WHERE (nd.ho_ten LIKE ? OR bs.ten_bac_si LIKE ?)";
         $params = ['%' . $search . '%', '%' . $search . '%'];
-
         if (in_array($status, $valid, true)) {
-            $sql .= " AND lk.trang_thai = ?";
+            $fromWhere .= " AND lk.trang_thai = ?";
             $params[] = $status;
         }
-        $sql .= " ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC";
-
+        $countQuery = $this->db->prepare("SELECT COUNT(DISTINCT lk.ma_lich_kham)" . $fromWhere);
+        $countQuery->execute($params);
+        $totalRows = (int)$countQuery->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
+        $sql = "SELECT lk.*, nd.ho_ten, nd.so_dien_thoai,
+                       bs.ten_bac_si, ck.ten_chuyen_khoa,
+                       pk.ma_phieu_kham" . $fromWhere . "
+                ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC
+                LIMIT {$perPage} OFFSET {$offset}";
         $q = $this->db->prepare($sql);
         $q->execute($params);
         $rows = $q->fetchAll(PDO::FETCH_ASSOC);
@@ -1806,7 +1872,7 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
         if (!$rows) {
             $content .= '<div class="bg-white rounded-xl p-8 text-center text-slate-400">Chưa có lịch khám phù hợp.</div>';
         }
-        $content .= '</div>';
+        $content .= '</div>' . $this->paginationLinks($totalRows, $page, $perPage);
         $this->render('Quản lý lịch khám', $content);
     }
 
@@ -1841,6 +1907,7 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
             if (!in_array($lich['trang_thai'], $transitions[$newStatus] ?? [], true)) {
                 throw new RuntimeException('Không thể chuyển trạng thái lịch khám này.');
             }
+
             if ($newStatus === 'da_xac_nhan') {
                 $huongDan = trim($_POST['huong_dan_chuan_bi'] ?? '');
                 $quyTrinh = trim($_POST['quy_trinh_kham'] ?? '');
@@ -1981,25 +2048,24 @@ onsubmit="return confirm(\'Xóa gói khám này?\')">'
 
         $search = trim($_GET['q'] ?? '');
 
+        $like = '%' . $search . '%';
+        $whereSql = "nd.vai_tro='benh_nhan' AND (nd.ho_ten LIKE ? OR nd.email LIKE ? OR nd.so_dien_thoai LIKE ?)";
+        $params = [$like, $like, $like];
+        $countQuery = $this->db->prepare("SELECT COUNT(*) FROM nguoi_dung nd WHERE " . $whereSql);
+        $countQuery->execute($params);
+        $totalRows = (int)$countQuery->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
         $q = $this->db->prepare(
             "SELECT nd.*,
-                (SELECT COUNT(*)
-                 FROM lich_kham lk
-                 WHERE lk.ma_nguoi_dung=nd.ma_nguoi_dung)
-                 AS tong_lich
-             FROM nguoi_dung nd
-             WHERE nd.vai_tro='benh_nhan'
-             AND (
-                nd.ho_ten LIKE ?
-                OR nd.email LIKE ?
-                OR nd.so_dien_thoai LIKE ?
-             )
-             ORDER BY nd.ma_nguoi_dung DESC"
+                (SELECT COUNT(*) FROM lich_kham lk
+                 WHERE lk.ma_nguoi_dung=nd.ma_nguoi_dung) AS tong_lich
+             FROM nguoi_dung nd WHERE " . $whereSql . "
+             ORDER BY nd.ma_nguoi_dung DESC LIMIT {$perPage} OFFSET {$offset}"
         );
-
-        $like = '%' . $search . '%';
-        $q->execute([$like, $like, $like]);
-
+        $q->execute($params);
         $rows = $q->fetchAll(PDO::FETCH_ASSOC);
 
         $content = '<form method="GET" class="mb-5 flex gap-2">
@@ -2050,7 +2116,7 @@ Không tìm thấy bệnh nhân.
 </tr>';
         }
 
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div>' . $this->paginationLinks($totalRows, $page, $perPage);
 
         $this->render('Quản lý bệnh nhân', $content);
     }
@@ -2205,7 +2271,21 @@ Không tìm thấy bệnh nhân.
             $sql .= ' AND pk.trang_thai_phieu = ?';
             $params[] = $status;
         }
-        $sql .= ' ORDER BY pk.ngay_tao DESC, pk.ma_phieu_kham DESC';
+        $countSql = preg_replace('/^SELECT[\\s\\S]*?FROM /', 'SELECT COUNT(*) FROM ', $sql, 1);
+        $countQuery = $this->db->prepare($countSql);
+        $countQuery->execute($params);
+        $totalRows = (int)$countQuery->fetchColumn();
+
+        $statsSql = preg_replace('/^SELECT[\\s\\S]*?FROM /', "SELECT COUNT(*) AS tong, SUM(pk.trang_thai_phieu='da_gui') AS cho_kham, SUM(pk.trang_thai_phieu='da_kham') AS da_kham FROM ", $sql, 1);
+        $statsQuery = $this->db->prepare($statsSql);
+        $statsQuery->execute($params);
+        $recordStats = $statsQuery->fetch(PDO::FETCH_ASSOC) ?: ['tong' => 0, 'cho_kham' => 0, 'da_kham' => 0];
+
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
+        $sql .= ' ORDER BY pk.ngay_tao DESC, pk.ma_phieu_kham DESC LIMIT ' . $perPage . ' OFFSET ' . $offset;
 
         $q = $this->db->prepare($sql);
         $q->execute($params);
@@ -2213,11 +2293,11 @@ Không tìm thấy bệnh nhân.
 
         $content = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">'
             . '<div class="bg-white rounded-2xl border border-slate-100 p-5"><p class="text-xs text-slate-500">Tổng hồ sơ tìm thấy</p><p class="text-3xl font-black text-slate-900 mt-2">'
-            . count($rows) . '</p></div>'
+            . (int)$recordStats['tong'] . '</p></div>'
             . '<div class="bg-white rounded-2xl border border-slate-100 p-5"><p class="text-xs text-slate-500">Đang chờ khám</p><p class="text-3xl font-black text-amber-600 mt-2">'
-            . count(array_filter($rows, static fn($x) => ($x['trang_thai_phieu'] ?? '') === 'da_gui')) . '</p></div>'
+            . (int)$recordStats['cho_kham'] . '</p></div>'
             . '<div class="bg-white rounded-2xl border border-slate-100 p-5"><p class="text-xs text-slate-500">Đã khám</p><p class="text-3xl font-black text-emerald-600 mt-2">'
-            . count(array_filter($rows, static fn($x) => ($x['trang_thai_phieu'] ?? '') === 'da_kham')) . '</p></div>'
+            . (int)$recordStats['da_kham'] . '</p></div>'
             . '</div>'
             . '<form method="GET" class="bg-white border border-slate-100 rounded-2xl p-4 mb-5 flex flex-col md:flex-row gap-3">'
             . '<input type="hidden" name="act" value="admin-benh-nhan"><input type="hidden" name="view" value="ho-so-benh-an">'
@@ -2253,7 +2333,7 @@ Không tìm thấy bệnh nhân.
         if (!$rows) {
             $content .= '<tr><td colspan="7" class="p-10 text-center text-slate-400">Chưa có hồ sơ bệnh án phù hợp. Hồ sơ sẽ xuất hiện sau khi Admin duyệt lịch khám và hệ thống tạo phiếu khám.</td></tr>';
         }
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div>' . $this->paginationLinks($totalRows, $page, $perPage);
         $this->render('Quản lý hồ sơ bệnh án', $content);
     }
 
@@ -2271,34 +2351,36 @@ Không tìm thấy bệnh nhân.
          * Không truy vấn ngay_danh_gia vì bảng không có cột này.
          */
 
-        $rows = $this->db->query(
-            "SELECT
-                dg.ma_danh_gia,
-                dg.ma_lich_kham,
-                dg.so_sao,
-                dg.noi_dung,
-                nd.ho_ten,
-                bs.ten_bac_si
-             FROM danh_gia dg
-             LEFT JOIN nguoi_dung nd
-                ON nd.ma_nguoi_dung=dg.ma_nguoi_dung
-             LEFT JOIN bac_si bs
-                ON bs.ma_bac_si=dg.ma_bac_si
-             ORDER BY dg.ma_danh_gia DESC"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $search = trim($_GET['q'] ?? '');
+        $like = '%' . $search . '%';
+        $reviewFrom = " FROM danh_gia dg
+             LEFT JOIN nguoi_dung nd ON nd.ma_nguoi_dung=dg.ma_nguoi_dung
+             LEFT JOIN bac_si bs ON bs.ma_bac_si=dg.ma_bac_si
+             WHERE (nd.ho_ten LIKE ? OR bs.ten_bac_si LIKE ? OR dg.noi_dung LIKE ?)";
+        $reviewParams = [$like, $like, $like];
 
-        $count = count($rows);
-        $sum = 0;
+        $statsQuery = $this->db->prepare(
+            "SELECT COUNT(*) AS tong, COALESCE(AVG(dg.so_sao),0) AS trung_binh" . $reviewFrom
+        );
+        $statsQuery->execute($reviewParams);
+        $reviewStats = $statsQuery->fetch(PDO::FETCH_ASSOC) ?: ['tong' => 0, 'trung_binh' => 0];
+        $count = (int)$reviewStats['tong'];
+        $average = round((float)$reviewStats['trung_binh'], 1);
 
-        foreach ($rows as $r) {
-            $sum += (int)$r['so_sao'];
-        }
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($count / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
+        $q = $this->db->prepare(
+            "SELECT dg.ma_danh_gia,dg.ma_lich_kham,dg.so_sao,dg.noi_dung,
+                    nd.ho_ten,bs.ten_bac_si" . $reviewFrom . "
+             ORDER BY dg.ma_danh_gia DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $q->execute($reviewParams);
+        $rows = $q->fetchAll(PDO::FETCH_ASSOC);
 
-        $average = $count
-            ? round($sum / $count, 1)
-            : 0;
-
-        $content = '
+        $content = '<form method="GET" class="bg-white rounded-2xl border border-slate-100 p-4 mb-5 flex gap-3"><input type="hidden" name="act" value="admin-danh-gia"><input type="search" name="q" value="' . $this->e($search) . '" placeholder="Tìm bệnh nhân, bác sĩ hoặc nội dung đánh giá..." class="flex-1 p-3 border rounded-xl text-sm"><button class="bg-slate-900 text-white px-5 rounded-xl text-sm font-bold">Tìm kiếm</button></form>'
+            . '
 <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-7">
 
 <div class="bg-white p-6 rounded-2xl
@@ -2403,6 +2485,7 @@ Chưa có đánh giá nào trong hệ thống.
 
         $content .= '</tbody></table></div>';
 
+        $content .= $this->paginationLinks($count, $page, $perPage);
         $this->render('Quản lý đánh giá', $content);
     }
 
@@ -2916,7 +2999,7 @@ Chưa có thông báo.
         $q->execute($params);
         $total = (int)$q->fetchColumn();
 
-        $perPage = 15;
+        $perPage = 5;
         $totalPages = max(1, (int)ceil($total / $perPage));
         $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
         $offset = ($page - 1) * $perPage;

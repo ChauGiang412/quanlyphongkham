@@ -64,6 +64,24 @@
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($totalPages > 1): ?>
+                <nav class="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Phân trang lịch sử khám">
+                    <span class="text-xs text-slate-500">Trang <?= (int)$page ?> / <?= (int)$totalPages ?> · <?= (int)$totalLich ?> lịch khám</span>
+                    <div class="flex flex-wrap gap-1">
+                        <?php $historyUrl = static function (int $p): string {
+                            return 'index.php?' . http_build_query(['act' => 'lich-su', 'page' => $p]);
+                        }; ?>
+                        <a href="<?= htmlspecialchars($historyUrl(1), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-2 rounded-lg border text-xs font-semibold <?= $page <= 1 ? 'pointer-events-none opacity-40' : 'hover:bg-slate-100'; ?>">Đầu</a>
+                        <a href="<?= htmlspecialchars($historyUrl(max(1, $page - 1)), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-2 rounded-lg border text-xs font-semibold <?= $page <= 1 ? 'pointer-events-none opacity-40' : 'hover:bg-slate-100'; ?>">Trước</a>
+                        <?php for ($p = max(1, $page - 2); $p <= min($totalPages, $page + 2); $p++): ?>
+                            <a href="<?= htmlspecialchars($historyUrl($p), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-2 rounded-lg border text-xs font-bold <?= $p === $page ? 'bg-brand-600 text-white border-brand-600' : 'hover:bg-slate-100'; ?>"><?= $p ?></a>
+                        <?php endfor; ?>
+                        <a href="<?= htmlspecialchars($historyUrl(min($totalPages, $page + 1)), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-2 rounded-lg border text-xs font-semibold <?= $page >= $totalPages ? 'pointer-events-none opacity-40' : 'hover:bg-slate-100'; ?>">Sau</a>
+                        <a href="<?= htmlspecialchars($historyUrl($totalPages), ENT_QUOTES, 'UTF-8') ?>" class="px-3 py-2 rounded-lg border text-xs font-semibold <?= $page >= $totalPages ? 'pointer-events-none opacity-40' : 'hover:bg-slate-100'; ?>">Cuối</a>
+                    </div>
+                </nav>
+            <?php endif; ?>
         </div>
     </div>
 </main>

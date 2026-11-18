@@ -185,7 +185,7 @@ class AuthController
             $email = trim($_POST['email'] ?? '');
             $soDienThoai = trim($_POST['so_dien_thoai'] ?? '');
             $matKhau = $_POST['mat_khau'] ?? '';
-            $xacNhanMatKhau = $_POST['xac_nhan_mat_khau'] ?? '';
+            $xacNhanMatKhau = $_POST['nhap_lai_mat_khau'] ?? '';
 
             if (
                 $hoTen === '' ||
