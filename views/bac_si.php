@@ -18,7 +18,7 @@
             </thead>
             <tbody class="divide-y text-sm">
                 <tr>
-                    <td class="py-4 px-4 font-bold">Nguyễn Châu Giang[cite: 1]</td>
+                    <td class="py-4 px-4 font-bold">Nguyễn Châu Giang</td>
                     <td class="py-4 px-4 text-slate-600">Hôm nay - 09:00</td>
                     <td class="py-4 px-4"><button class="bg-brand-600 text-white px-4 py-2 rounded-xl text-xs">Lập phiếu khám</button></td>
                 </tr>

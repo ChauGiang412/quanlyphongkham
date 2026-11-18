@@ -2,7 +2,7 @@
     <div class="flex justify-between items-center mb-8 pb-6 border-b border-slate-200">
         <div>
             <span class="text-brand-600 font-semibold text-xs uppercase tracking-wider">Cổng thông tin bệnh nhân</span>
-            <h1 class="text-2xl font-bold text-slate-900 mt-1">Xin chào, Nguyễn Châu Giang[cite: 1]</h1>
+            <h1 class="text-2xl font-bold text-slate-900 mt-1">Xin chào, Nguyễn Châu Giang</h1>
         </div>
         <span class="bg-teal-100 text-brand-800 text-xs font-semibold px-3.5 py-1.5 rounded-full">Bệnh nhân thân thiết</span>
     </div>

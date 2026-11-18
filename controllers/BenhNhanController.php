@@ -758,6 +758,143 @@ class BenhNhanController
     }
 
     // =====================================================
+    // 13B. GỬI ĐÁNH GIÁ BÁC SĨ SAU KHI KHÁM
+    // =====================================================
+
+    public function guiDanhGia()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: index.php?act=lich-su');
+            exit();
+        }
+
+        $maNguoiDung = $this->requireLogin();
+
+        $maLichKham = filter_input(
+            INPUT_POST,
+            'ma_lich_kham',
+            FILTER_VALIDATE_INT
+        );
+
+        $soSao = filter_input(
+            INPUT_POST,
+            'so_sao',
+            FILTER_VALIDATE_INT
+        );
+
+        $noiDung = trim($_POST['noi_dung_danh_gia'] ?? '');
+
+        if (!$maLichKham) {
+            header('Location: index.php?act=lich-su');
+            exit();
+        }
+
+        $urlChiTiet = 'index.php?act=chi-tiet-lich&id=' . $maLichKham;
+
+        if (!$soSao || $soSao < 1 || $soSao > 5) {
+            $this->redirectWithMessage(
+                'Vui lòng chọn số sao từ 1 đến 5!',
+                $urlChiTiet
+            );
+        }
+
+        if (mb_strlen($noiDung, 'UTF-8') > 1000) {
+            $this->redirectWithMessage(
+                'Nội dung đánh giá không được vượt quá 1000 ký tự!',
+                $urlChiTiet
+            );
+        }
+
+        // Chỉ được đánh giá lịch của chính mình và đã khám xong
+        $stmt = $this->db->prepare(
+            "SELECT ma_lich_kham, ma_bac_si, trang_thai
+             FROM lich_kham
+             WHERE ma_lich_kham = :id
+               AND ma_nguoi_dung = :ma_nguoi_dung
+             LIMIT 1"
+        );
+
+        $stmt->execute([
+            ':id' => $maLichKham,
+            ':ma_nguoi_dung' => $maNguoiDung
+        ]);
+
+        $lich = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$lich) {
+            $this->redirectWithMessage(
+                'Không tìm thấy lịch khám hoặc bạn không có quyền đánh giá!',
+                'index.php?act=lich-su'
+            );
+        }
+
+        if ($lich['trang_thai'] !== 'da_kham') {
+            $this->redirectWithMessage(
+                'Chỉ có thể đánh giá sau khi lịch khám đã hoàn thành!',
+                $urlChiTiet
+            );
+        }
+
+        // Mỗi lịch khám chỉ được đánh giá một lần
+        $check = $this->db->prepare(
+            "SELECT ma_danh_gia
+             FROM danh_gia
+             WHERE ma_lich_kham = :ma_lich_kham
+               AND ma_nguoi_dung = :ma_nguoi_dung
+             LIMIT 1"
+        );
+
+        $check->execute([
+            ':ma_lich_kham' => $maLichKham,
+            ':ma_nguoi_dung' => $maNguoiDung
+        ]);
+
+        if ($check->fetch()) {
+            $this->redirectWithMessage(
+                'Bạn đã đánh giá lịch khám này rồi!',
+                $urlChiTiet
+            );
+        }
+
+        $insert = $this->db->prepare(
+            "INSERT INTO danh_gia (
+                ma_nguoi_dung,
+                ma_bac_si,
+                ma_lich_kham,
+                so_sao,
+                noi_dung
+             )
+             VALUES (
+                :ma_nguoi_dung,
+                :ma_bac_si,
+                :ma_lich_kham,
+                :so_sao,
+                :noi_dung
+             )"
+        );
+
+        $success = $insert->execute([
+            ':ma_nguoi_dung' => $maNguoiDung,
+            ':ma_bac_si' => $lich['ma_bac_si'],
+            ':ma_lich_kham' => $maLichKham,
+            ':so_sao' => $soSao,
+            ':noi_dung' => $noiDung !== '' ? $noiDung : null
+        ]);
+
+        if ($success) {
+            $this->redirectWithMessage(
+                'Cảm ơn bạn đã gửi đánh giá!',
+                $urlChiTiet
+            );
+        }
+
+        $this->redirectWithMessage(
+            'Có lỗi xảy ra, vui lòng thử lại!',
+            $urlChiTiet
+        );
+    }
+
+    // =====================================================
     // 14. HỒ SƠ CÁ NHÂN
     // =====================================================
 
