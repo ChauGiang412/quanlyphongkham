@@ -7,16 +7,22 @@ class GoiKham {
     }
 
     // Lấy danh sách gói khám đang hoạt động
-    public function getAllGoiKham() {
+    public function getAllGoiKham($limit = 100000, $offset = 0) {
+        $limit = max(1, min(100000, (int)$limit)); $offset = max(0, (int)$offset);
         $sql = "SELECT *
                 FROM goi_kham
                 WHERE trang_thai = 'dang_hoat_dong'
-                ORDER BY ma_goi_kham DESC";
+                ORDER BY ma_goi_kham DESC
+                LIMIT {$limit} OFFSET {$offset}";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countAll() {
+        return (int)$this->conn->query("SELECT COUNT(*) FROM goi_kham WHERE trang_thai = 'dang_hoat_dong'")->fetchColumn();
     }
 
     // Lấy chi tiết gói khám

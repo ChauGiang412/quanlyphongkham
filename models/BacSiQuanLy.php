@@ -1,15 +1,85 @@
 
 <?php
 
-class BacSiQuanLy {
+class BacSiQuanLy
+{
     private PDO $db;
 
-    public function __construct(PDO $db) {
+    public function __construct(PDO $db)
+    {
         $this->db = $db;
     }
 
+    // Đếm lịch khám theo bác sĩ, trạng thái và ngày
+    public function countAppointments(
+        int $maBacSi,
+        string $status = '',
+        string $date = ''
+    ): int {
+        $where = ['ma_bac_si = :ma_bac_si'];
+        $params = [':ma_bac_si' => $maBacSi];
+
+        $allowed = [
+            'cho_xac_nhan',
+            'da_xac_nhan',
+            'da_kham',
+            'da_huy'
+        ];
+
+        if ($status !== '' && in_array($status, $allowed, true)) {
+            $where[] = 'trang_thai = :trang_thai';
+            $params[':trang_thai'] = $status;
+        }
+
+        if (
+            $date !== '' &&
+            preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+        ) {
+            $where[] = 'ngay_kham = :ngay_kham';
+            $params[':ngay_kham'] = $date;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM lich_kham WHERE ' .
+            implode(' AND ', $where)
+        );
+
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    // Đếm bệnh nhân
+    public function countPatients(int $maBacSi): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(DISTINCT ma_nguoi_dung)
+             FROM lich_kham
+             WHERE ma_bac_si = :id'
+        );
+
+        $stmt->execute([':id' => $maBacSi]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    // Đếm đánh giá
+    public function countReviews(int $maBacSi): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+             FROM danh_gia
+             WHERE ma_bac_si = :id'
+        );
+
+        $stmt->execute([':id' => $maBacSi]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
     // Lấy hồ sơ bác sĩ theo tài khoản đăng nhập
-    public function getDoctorByUserId(int $maNguoiDung): ?array {
+    public function getDoctorByUserId(int $maNguoiDung): ?array
+    {
         $sql = "SELECT bs.*, nd.ho_ten, nd.email, nd.so_dien_thoai,
                        nd.gioi_tinh, nd.ngay_sinh, nd.dia_chi,
                        ck.ten_chuyen_khoa
@@ -25,11 +95,13 @@ class BacSiQuanLy {
         $stmt->execute([':id' => $maNguoiDung]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return $row ?: null;
     }
 
     // Thống kê trang tổng quan
-    public function getDashboardStats(int $maBacSi): array {
+    public function getDashboardStats(int $maBacSi): array
+    {
         $sql = "SELECT
                     COUNT(*) AS tong_lich,
                     SUM(CASE WHEN trang_thai = 'cho_xac_nhan'
@@ -65,12 +137,31 @@ class BacSiQuanLy {
         return $row;
     }
 
-    // Lấy các lịch khám sắp tới
+    // Đếm lịch khám sắp tới trên Dashboard
+    public function countUpcomingAppointments(int $maBacSi): int
+    {
+        $sql = "SELECT COUNT(*)
+                FROM lich_kham
+                WHERE ma_bac_si = :ma_bac_si
+                  AND trang_thai IN (
+                      'cho_xac_nhan',
+                      'da_xac_nhan'
+                  )";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':ma_bac_si' => $maBacSi]);
+
+        return (int)$stmt->fetchColumn();
+    }
+
+    // Lấy lịch khám sắp tới theo từng trang Dashboard
     public function getUpcomingAppointments(
         int $maBacSi,
-        int $limit = 8
+        int $limit = 5,
+        int $offset = 0
     ): array {
-        $limit = max(1, min(30, $limit));
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
 
         $sql = "SELECT lk.*,
                        nd.ho_ten AS ten_benh_nhan,
@@ -88,7 +179,7 @@ class BacSiQuanLy {
                       'da_xac_nhan'
                   )
                 ORDER BY lk.ngay_kham ASC, lk.gio_kham ASC
-                LIMIT {$limit}";
+                LIMIT {$limit} OFFSET {$offset}";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':ma_bac_si' => $maBacSi]);
@@ -100,8 +191,13 @@ class BacSiQuanLy {
     public function getAppointments(
         int $maBacSi,
         string $status = '',
-        string $date = ''
+        string $date = '',
+        int $limit = 5,
+        int $offset = 0
     ): array {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+
         $where = ['lk.ma_bac_si = :ma_bac_si'];
         $params = [':ma_bac_si' => $maBacSi];
 
@@ -112,8 +208,10 @@ class BacSiQuanLy {
             'da_huy'
         ];
 
-        if ($status !== '' &&
-            in_array($status, $allowedStatuses, true)) {
+        if (
+            $status !== '' &&
+            in_array($status, $allowedStatuses, true)
+        ) {
             $where[] = 'lk.trang_thai = :trang_thai';
             $params[':trang_thai'] = $status;
         }
@@ -137,7 +235,8 @@ class BacSiQuanLy {
                 LEFT JOIN chuyen_khoa ck
                     ON ck.ma_chuyen_khoa = lk.ma_chuyen_khoa
                 WHERE " . implode(' AND ', $where) . "
-                ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC";
+                ORDER BY lk.ngay_kham DESC, lk.gio_kham DESC
+                LIMIT {$limit} OFFSET {$offset}";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -145,7 +244,7 @@ class BacSiQuanLy {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Chi tiết một lịch khám, chỉ lấy lịch của bác sĩ đang đăng nhập
+    // Chi tiết lịch khám
     public function getAppointmentDetail(
         int $maLichKham,
         int $maBacSi
@@ -168,17 +267,20 @@ class BacSiQuanLy {
                 LIMIT 1";
 
         $stmt = $this->db->prepare($sql);
+
         $stmt->execute([
             ':ma_lich_kham' => $maLichKham,
             ':ma_bac_si' => $maBacSi
         ]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return $row ?: null;
     }
 
     // Lấy phiếu khám
-    public function getMedicalRecord(int $maLichKham): ?array {
+    public function getMedicalRecord(int $maLichKham): ?array
+    {
         $sql = "SELECT *
                 FROM phieu_kham_benh
                 WHERE ma_lich_kham = :id
@@ -188,6 +290,7 @@ class BacSiQuanLy {
         $stmt->execute([':id' => $maLichKham]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return $row ?: null;
     }
 
@@ -215,6 +318,7 @@ class BacSiQuanLy {
                   )";
 
         $stmt = $this->db->prepare($sql);
+
         $stmt->execute([
             ':trang_thai' => $status,
             ':ma_lich_kham' => $maLichKham,
@@ -224,7 +328,7 @@ class BacSiQuanLy {
         return $stmt->rowCount() > 0;
     }
 
-    // Lưu kết quả khám và chuyển trạng thái sang đã khám
+    // Lưu kết quả khám
     public function saveMedicalRecord(
         int $maLichKham,
         int $maBacSi,
@@ -236,7 +340,6 @@ class BacSiQuanLy {
         try {
             $this->db->beginTransaction();
 
-            // Kiểm tra lịch khám có thuộc bác sĩ không
             $check = $this->db->prepare(
                 "SELECT trang_thai
                  FROM lich_kham
@@ -264,7 +367,6 @@ class BacSiQuanLy {
                 return false;
             }
 
-            // Thêm mới hoặc cập nhật phiếu khám
             $sql = "INSERT INTO phieu_kham_benh
                         (
                             ma_lich_kham,
@@ -288,6 +390,7 @@ class BacSiQuanLy {
                         ngay_tai_kham = VALUES(ngay_tai_kham)";
 
             $stmt = $this->db->prepare($sql);
+
             $stmt->execute([
                 ':ma_lich_kham' => $maLichKham,
                 ':chuan_doan' => $chuanDoan,
@@ -298,7 +401,6 @@ class BacSiQuanLy {
                 ':ngay_tai_kham' => $ngayTaiKham
             ]);
 
-            // Hoàn thành lịch khám
             $update = $this->db->prepare(
                 "UPDATE lich_kham
                  SET trang_thai = 'da_kham'
@@ -312,6 +414,7 @@ class BacSiQuanLy {
             ]);
 
             $this->db->commit();
+
             return true;
 
         } catch (Throwable $e) {
@@ -323,8 +426,15 @@ class BacSiQuanLy {
         }
     }
 
-    // Danh sách bệnh nhân từng khám với bác sĩ
-    public function getPatients(int $maBacSi): array {
+    // Danh sách bệnh nhân
+    public function getPatients(
+        int $maBacSi,
+        int $limit = 5,
+        int $offset = 0
+    ): array {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+
         $sql = "SELECT
                     nd.ma_nguoi_dung,
                     nd.ho_ten,
@@ -341,7 +451,8 @@ class BacSiQuanLy {
                     nd.ho_ten,
                     nd.email,
                     nd.so_dien_thoai
-                ORDER BY lan_kham_gan_nhat DESC";
+                ORDER BY lan_kham_gan_nhat DESC
+                LIMIT {$limit} OFFSET {$offset}";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':ma_bac_si' => $maBacSi]);
@@ -349,8 +460,15 @@ class BacSiQuanLy {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Danh sách đánh giá của bệnh nhân
-    public function getReviews(int $maBacSi): array {
+    // Danh sách đánh giá
+    public function getReviews(
+        int $maBacSi,
+        int $limit = 5,
+        int $offset = 0
+    ): array {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+
         $sql = "SELECT
                     dg.*,
                     nd.ho_ten AS ten_benh_nhan,
@@ -362,7 +480,8 @@ class BacSiQuanLy {
                 LEFT JOIN lich_kham lk
                     ON lk.ma_lich_kham = dg.ma_lich_kham
                 WHERE dg.ma_bac_si = :ma_bac_si
-                ORDER BY dg.ma_danh_gia DESC";
+                ORDER BY dg.ma_danh_gia DESC
+                LIMIT {$limit} OFFSET {$offset}";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':ma_bac_si' => $maBacSi]);
@@ -370,8 +489,32 @@ class BacSiQuanLy {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Thống kê đánh giá
+    public function getReviewSummary(int $maBacSi): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT
+                COUNT(*) AS tong,
+                COALESCE(AVG(so_sao), 0) AS trung_binh,
+                SUM(CASE WHEN so_sao = 5 THEN 1 ELSE 0 END) AS nam_sao
+             FROM danh_gia
+             WHERE ma_bac_si = :id"
+        );
+
+        $stmt->execute([':id' => $maBacSi]);
+
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'tong' => (int)($row['tong'] ?? 0),
+            'trung_binh' => (float)($row['trung_binh'] ?? 0),
+            'nam_sao' => (int)($row['nam_sao'] ?? 0)
+        ];
+    }
+
     // Lấy hồ sơ bác sĩ
-    public function getProfile(int $maBacSi): ?array {
+    public function getProfile(int $maBacSi): ?array
+    {
         $sql = "SELECT
                     bs.*,
                     nd.ma_nguoi_dung,
@@ -394,6 +537,7 @@ class BacSiQuanLy {
         $stmt->execute([':id' => $maBacSi]);
 
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return $row ?: null;
     }
 
@@ -412,7 +556,6 @@ class BacSiQuanLy {
         try {
             $this->db->beginTransaction();
 
-            // Kiểm tra email có bị trùng không
             $check = $this->db->prepare(
                 "SELECT ma_nguoi_dung
                  FROM nguoi_dung
@@ -431,7 +574,6 @@ class BacSiQuanLy {
                 return false;
             }
 
-            // Cập nhật thông tin tài khoản
             $user = $this->db->prepare(
                 "UPDATE nguoi_dung
                  SET ho_ten = :ho_ten,
@@ -448,7 +590,6 @@ class BacSiQuanLy {
                 ':id' => $maNguoiDung
             ]);
 
-            // Cập nhật thông tin chuyên môn
             $doctor = $this->db->prepare(
                 "UPDATE bac_si
                  SET ten_bac_si = :ten,
@@ -471,6 +612,7 @@ class BacSiQuanLy {
             ]);
 
             $this->db->commit();
+
             return true;
 
         } catch (Throwable $e) {

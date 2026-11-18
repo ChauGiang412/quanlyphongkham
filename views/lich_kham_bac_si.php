@@ -1,3 +1,4 @@
+
 <?php
 $statusLabels = [
     'cho_xac_nhan' => 'Chờ xác nhận',
@@ -12,6 +13,25 @@ $statusColors = [
     'da_kham' => 'bg-emerald-50 text-emerald-700',
     'da_huy' => 'bg-rose-50 text-rose-700'
 ];
+
+$currentPage = (int)($pagination['page'] ?? 1);
+$totalPages = (int)($pagination['totalPages'] ?? 1);
+$totalRecords = (int)($pagination['total'] ?? count($danhSachLich));
+
+$currentPage = max(1, $currentPage);
+$totalPages = max(1, $totalPages);
+
+$paginationParams = [
+    'act' => 'bac-si-lich-kham',
+    'trang_thai' => $status ?? '',
+    'ngay_kham' => $date ?? ''
+];
+
+$makePageUrl = function ($page) use ($paginationParams) {
+    return 'index.php?' . http_build_query(
+        array_merge($paginationParams, ['page' => $page])
+    );
+};
 ?>
 
 <!-- BỘ LỌC -->
@@ -23,7 +43,6 @@ $statusColors = [
         <input type="hidden" name="act" value="bac-si-lich-kham">
 
         <label class="text-sm font-semibold text-slate-600">
-
             Trạng thái
 
             <select name="trang_thai"
@@ -32,29 +51,22 @@ $statusColors = [
                 <option value="">Tất cả trạng thái</option>
 
                 <?php foreach ($statusLabels as $key => $label): ?>
-
                     <option value="<?= htmlspecialchars($key) ?>"
-                        <?= $status === $key ? 'selected' : '' ?>>
-
+                        <?= ($status ?? '') === $key ? 'selected' : '' ?>>
                         <?= htmlspecialchars($label) ?>
-
                     </option>
-
                 <?php endforeach; ?>
 
             </select>
-
         </label>
 
         <label class="text-sm font-semibold text-slate-600">
-
             Ngày khám
 
             <input type="date"
                    name="ngay_kham"
                    value="<?= htmlspecialchars($date ?? '') ?>"
                    class="mt-2 w-full border border-slate-200 rounded-xl px-3 py-2.5">
-
         </label>
 
         <button type="submit"
@@ -82,7 +94,7 @@ $statusColors = [
     <div class="px-5 py-4 border-b border-slate-100">
 
         <h2 class="font-extrabold">
-            Danh sách lịch khám (<?= count($danhSachLich) ?>)
+            Danh sách lịch khám (<?= $totalRecords ?>)
         </h2>
 
     </div>
@@ -189,3 +201,88 @@ $statusColors = [
     <?php endif; ?>
 
 </div>
+
+<!-- PHÂN TRANG -->
+<?php if ($totalPages > 1): ?>
+
+    <div class="flex flex-col items-center justify-center gap-3 mt-7 mb-5">
+
+        <div class="flex items-center justify-center flex-wrap gap-2">
+
+            <!-- TRANG TRƯỚC -->
+            <?php if ($currentPage > 1): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($currentPage - 1)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center
+                          border border-slate-200 bg-white text-slate-600
+                          hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 transition">
+
+                    <i class="fa-solid fa-chevron-left"></i>
+
+                </a>
+
+            <?php else: ?>
+
+                <span class="w-10 h-10 rounded-full flex items-center justify-center
+                             border border-slate-100 bg-slate-50 text-slate-300">
+
+                    <i class="fa-solid fa-chevron-left"></i>
+
+                </span>
+
+            <?php endif; ?>
+
+            <!-- CÁC SỐ TRANG -->
+            <?php
+            $startPage = max(1, $currentPage - 2);
+            $endPage = min($totalPages, $currentPage + 2);
+            ?>
+
+            <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($i)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center
+                          font-bold text-sm transition
+                          <?= $i === $currentPage
+                              ? 'bg-teal-600 text-white shadow-md shadow-teal-100'
+                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300' ?>">
+
+                    <?= $i ?>
+
+                </a>
+
+            <?php endfor; ?>
+
+            <!-- TRANG SAU -->
+            <?php if ($currentPage < $totalPages): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($currentPage + 1)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center
+                          border border-slate-200 bg-white text-slate-600
+                          hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 transition">
+
+                    <i class="fa-solid fa-chevron-right"></i>
+
+                </a>
+
+            <?php else: ?>
+
+                <span class="w-10 h-10 rounded-full flex items-center justify-center
+                             border border-slate-100 bg-slate-50 text-slate-300">
+
+                    <i class="fa-solid fa-chevron-right"></i>
+
+                </span>
+
+            <?php endif; ?>
+
+        </div>
+
+        <p class="text-xs text-slate-400">
+            Trang <?= $currentPage ?> / <?= $totalPages ?>
+            · <?= $totalRecords ?> lịch khám
+        </p>
+
+    </div>
+
+<?php endif; ?>

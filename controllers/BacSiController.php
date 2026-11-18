@@ -116,6 +116,12 @@ class BacSiController
         exit();
     }
 
+    private function pagination(int $total, int $page, int $perPage = 5): array {
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page = min(max(1, $page), $totalPages);
+        return ['page' => $page, 'perPage' => $perPage, 'total' => $total, 'totalPages' => $totalPages, 'offset' => ($page - 1) * $perPage];
+    }
+
     /**
      * Trang tổng quan bác sĩ.
      */
@@ -125,15 +131,23 @@ class BacSiController
             $this->maBacSi
         );
 
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->pagination(
+            $this->model->countUpcomingAppointments($this->maBacSi),
+            $page
+        );
+
         $lichSapToi = $this->model->getUpcomingAppointments(
-            $this->maBacSi
+            $this->maBacSi,
+            $pagination['perPage'],
+            $pagination['offset']
         );
 
         $this->render(
             'dashboard_bac_si',
             'Tổng quan',
             'dashboard',
-            compact('stats', 'lichSapToi')
+            compact('stats', 'lichSapToi', 'pagination')
         );
     }
 
@@ -144,18 +158,18 @@ class BacSiController
     {
         $status = trim($_GET['trang_thai'] ?? '');
         $date = trim($_GET['ngay_kham'] ?? '');
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->pagination($this->model->countAppointments($this->maBacSi, $status, $date), $page);
 
         $danhSachLich = $this->model->getAppointments(
-            $this->maBacSi,
-            $status,
-            $date
+            $this->maBacSi, $status, $date, $pagination['perPage'], $pagination['offset']
         );
 
         $this->render(
             'lich_kham_bac_si',
             'Lịch khám của tôi',
             'lich-kham',
-            compact('status', 'date', 'danhSachLich')
+            compact('status', 'date', 'danhSachLich', 'pagination')
         );
     }
 
@@ -329,15 +343,17 @@ class BacSiController
      */
     public function benhNhan(): void
     {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->pagination($this->model->countPatients($this->maBacSi), $page);
         $danhSachBenhNhan = $this->model->getPatients(
-            $this->maBacSi
+            $this->maBacSi, $pagination['perPage'], $pagination['offset']
         );
 
         $this->render(
             'benh_nhan_bac_si',
             'Danh sách bệnh nhân',
             'benh-nhan',
-            compact('danhSachBenhNhan')
+            compact('danhSachBenhNhan', 'pagination')
         );
     }
 
@@ -346,15 +362,18 @@ class BacSiController
      */
     public function danhGia(): void
     {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->pagination($this->model->countReviews($this->maBacSi), $page);
         $danhSachDanhGia = $this->model->getReviews(
-            $this->maBacSi
+            $this->maBacSi, $pagination['perPage'], $pagination['offset']
         );
+        $thongKeDanhGia = $this->model->getReviewSummary($this->maBacSi);
 
         $this->render(
             'danh_gia_bac_si',
             'Đánh giá của bệnh nhân',
             'danh-gia',
-            compact('danhSachDanhGia')
+            compact('danhSachDanhGia', 'pagination', 'thongKeDanhGia')
         );
     }
 

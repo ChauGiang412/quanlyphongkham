@@ -52,6 +52,80 @@ if (!function_exists('e')) {
     .clinic-label {
         letter-spacing: .16em;
     }
+
+    /* ===== Slider lướt ngang (chuyên khoa / bác sĩ / gói khám) ===== */
+    .hs { position: relative; }
+    .hs-track {
+        --hs-gap: 1.5rem;
+        display: flex;
+        gap: var(--hs-gap);
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px 4px 22px;
+        margin: -14px -4px -22px;
+        scrollbar-width: none;
+    }
+    .hs-track::-webkit-scrollbar { display: none; }
+    .hs-track > * {
+        flex: 0 0 86%;
+        min-width: 0;
+        scroll-snap-align: start;
+    }
+    @media (min-width: 640px) {
+        .hs-track > * { flex-basis: calc((100% - var(--hs-gap)) / 2); }
+    }
+    @media (min-width: 1280px) {
+        .hs-track > * { flex-basis: calc((100% - 2 * var(--hs-gap)) / 3); }
+    }
+    .hs-track > .col-span-full { flex-basis: 100%; }
+    .hs-btn {
+        position: absolute;
+        top: 50%;
+        z-index: 10;
+        width: 46px;
+        height: 46px;
+        margin-top: -23px;
+        border-radius: 9999px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #0f766e;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, .15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background .2s, color .2s, opacity .2s, transform .2s;
+    }
+    .hs-btn:hover:not(:disabled) { background: #0d9488; color: #fff; transform: scale(1.08); }
+    .hs-btn:disabled { opacity: 0; pointer-events: none; }
+    .hs-prev { left: -14px; }
+    .hs-next { right: -14px; }
+    .hs-dots {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+    }
+    .hs-dot {
+        width: 9px;
+        height: 9px;
+        padding: 0;
+        border: 0;
+        border-radius: 9999px;
+        background: #cbd5e1;
+        cursor: pointer;
+        transition: width .25s ease, background .25s ease;
+    }
+    .hs-dot:hover { background: #5eead4; }
+    .hs-dot.is-active { width: 26px; background: #0d9488; }
+    @media (max-width: 639px) {
+        .hs-btn { width: 38px; height: 38px; margin-top: -19px; }
+        .hs-prev { left: -6px; }
+        .hs-next { right: -6px; }
+    }
 </style>
 
 <main
@@ -430,7 +504,10 @@ if (!function_exists('e')) {
 
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div class="hs" data-hs>
+                    <button type="button" class="hs-btn hs-prev" data-hs-prev aria-label="Xem mục trước"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button type="button" class="hs-btn hs-next" data-hs-next aria-label="Xem mục tiếp theo"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="hs-track" data-hs-track>
 
                     <?php if (!empty($danhSachChuyenKhoa)): ?>
 
@@ -520,6 +597,8 @@ if (!function_exists('e')) {
                     <?php endif; ?>
 
                 </div>
+                </div>
+                <div class="hs-dots" data-hs-dots aria-label="Chọn vị trí hiển thị"></div>
 
             </section>
 
@@ -551,7 +630,10 @@ if (!function_exists('e')) {
 
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div class="hs" data-hs>
+                    <button type="button" class="hs-btn hs-prev" data-hs-prev aria-label="Xem mục trước"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button type="button" class="hs-btn hs-next" data-hs-next aria-label="Xem mục tiếp theo"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="hs-track" data-hs-track>
 
                     <?php if (!empty($danhSachBacSi)): ?>
 
@@ -625,6 +707,8 @@ if (!function_exists('e')) {
                     <?php endif; ?>
 
                 </div>
+                </div>
+                <div class="hs-dots" data-hs-dots aria-label="Chọn vị trí hiển thị"></div>
 
             </section>
 
@@ -647,7 +731,10 @@ if (!function_exists('e')) {
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                <div class="hs" data-hs>
+                    <button type="button" class="hs-btn hs-prev" data-hs-prev aria-label="Xem mục trước"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button type="button" class="hs-btn hs-next" data-hs-next aria-label="Xem mục tiếp theo"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="hs-track" data-hs-track>
 
                     <?php if (!empty($danhSachGoiKham)): ?>
 
@@ -738,6 +825,8 @@ if (!function_exists('e')) {
                     <?php endif; ?>
 
                 </div>
+                </div>
+                <div class="hs-dots" data-hs-dots aria-label="Chọn vị trí hiển thị"></div>
 
             </section>
 
@@ -909,3 +998,104 @@ if (!function_exists('e')) {
 <?php
 require_once 'views/footer.php';
 ?>
+
+<script>
+(function () {
+    document.querySelectorAll('[data-hs]').forEach(function (box) {
+        var track = box.querySelector('[data-hs-track]');
+        var prev = box.querySelector('[data-hs-prev]');
+        var next = box.querySelector('[data-hs-next]');
+        if (!track || !prev || !next) return;
+
+        function step() {
+            var first = track.firstElementChild;
+            var gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+            return first ? first.getBoundingClientRect().width + gap : track.clientWidth * 0.9;
+        }
+
+        var dotsBox = box.nextElementSibling;
+        if (dotsBox && !dotsBox.hasAttribute('data-hs-dots')) dotsBox = null;
+        var dots = [];
+
+        function maxScroll() {
+            return Math.max(0, track.scrollWidth - track.clientWidth);
+        }
+
+        function pageCount() {
+            var max = maxScroll();
+            if (max <= 2) return 1;
+            return Math.ceil((max - 2) / step()) + 1;
+        }
+
+        function buildDots() {
+            if (!dotsBox) return;
+            var n = pageCount();
+            if (dots.length === n) return;
+            dotsBox.innerHTML = '';
+            dots = [];
+            dotsBox.style.display = n > 1 ? '' : 'none';
+            for (var i = 0; i < n; i++) {
+                (function (idx) {
+                    var d = document.createElement('button');
+                    d.type = 'button';
+                    d.className = 'hs-dot';
+                    d.setAttribute('aria-label', 'Đến vị trí ' + (idx + 1));
+                    d.addEventListener('click', function () {
+                        var target = idx === n - 1 ? maxScroll() : idx * step();
+                        track.scrollTo({ left: target, behavior: 'smooth' });
+                    });
+                    dotsBox.appendChild(d);
+                    dots.push(d);
+                })(i);
+            }
+        }
+
+        function update() {
+            var max = maxScroll() - 2;
+            prev.disabled = track.scrollLeft <= 2;
+            next.disabled = track.scrollLeft >= max;
+            buildDots();
+            if (dots.length) {
+                var idx = track.scrollLeft >= max
+                    ? dots.length - 1
+                    : Math.min(dots.length - 1, Math.round(track.scrollLeft / step()));
+                dots.forEach(function (d, i) { d.classList.toggle('is-active', i === idx); });
+            }
+        }
+
+        prev.addEventListener('click', function () { track.scrollBy({ left: -step(), behavior: 'smooth' }); });
+        next.addEventListener('click', function () { track.scrollBy({ left: step(), behavior: 'smooth' }); });
+        track.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update);
+        window.addEventListener('load', update);
+        update();
+
+        // Kéo chuột để lướt trên máy tính
+        var down = false, moved = false, startX = 0, startLeft = 0;
+        track.addEventListener('mousedown', function (e) {
+            down = true; moved = false; startX = e.pageX; startLeft = track.scrollLeft;
+        });
+        window.addEventListener('mouseup', function () {
+            if (!down) return;
+            down = false;
+            track.style.scrollSnapType = '';
+            track.style.scrollBehavior = '';
+        });
+        window.addEventListener('mousemove', function (e) {
+            if (!down) return;
+            var dx = e.pageX - startX;
+            if (Math.abs(dx) > 5) {
+                moved = true;
+                track.style.scrollSnapType = 'none';
+                track.style.scrollBehavior = 'auto';
+                track.scrollLeft = startLeft - dx;
+            }
+        });
+        // Chặn click nhầm vào thẻ sau khi vừa kéo
+        track.addEventListener('click', function (e) {
+            if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+        }, true);
+        track.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    });
+})();
+</script>

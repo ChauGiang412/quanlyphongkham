@@ -1,23 +1,19 @@
+
 <?php
-$tongDanhGia = count($danhSachDanhGia);
+$tongDanhGia = (int)($thongKeDanhGia['tong'] ?? 0);
+$diemTrungBinh = (float)($thongKeDanhGia['trung_binh'] ?? 0);
+$namSao = (int)($thongKeDanhGia['nam_sao'] ?? 0);
 
-$tongSao = 0;
+$currentPage = max(1, (int)($pagination['page'] ?? 1));
+$totalPages = max(1, (int)($pagination['totalPages'] ?? 1));
+$totalRecords = (int)($pagination['total'] ?? count($danhSachDanhGia));
 
-foreach ($danhSachDanhGia as $dg) {
-    $tongSao += (int)$dg['so_sao'];
-}
-
-$diemTrungBinh = $tongDanhGia > 0
-    ? $tongSao / $tongDanhGia
-    : 0;
-
-$namSao = 0;
-
-foreach ($danhSachDanhGia as $dg) {
-    if ((int)$dg['so_sao'] === 5) {
-        $namSao++;
-    }
-}
+$makePageUrl = function ($page) {
+    return 'index.php?' . http_build_query([
+        'act' => 'bac-si-danh-gia',
+        'page' => $page
+    ]);
+};
 ?>
 
 <!-- THỐNG KÊ ĐÁNH GIÁ -->
@@ -163,3 +159,81 @@ foreach ($danhSachDanhGia as $dg) {
     <?php endif; ?>
 
 </div>
+
+<!-- PHÂN TRANG -->
+<?php if ($totalPages > 1): ?>
+
+    <div class="flex flex-col items-center justify-center gap-3 mt-7 mb-5">
+
+        <div class="flex items-center justify-center flex-wrap gap-2">
+
+            <!-- TRANG TRƯỚC -->
+            <?php if ($currentPage > 1): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($currentPage - 1)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center border border-slate-200 bg-white text-slate-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 transition">
+
+                    <i class="fa-solid fa-chevron-left"></i>
+
+                </a>
+
+            <?php else: ?>
+
+                <span class="w-10 h-10 rounded-full flex items-center justify-center border border-slate-100 bg-slate-50 text-slate-300">
+
+                    <i class="fa-solid fa-chevron-left"></i>
+
+                </span>
+
+            <?php endif; ?>
+
+            <!-- SỐ TRANG -->
+            <?php
+            $startPage = max(1, $currentPage - 2);
+            $endPage = min($totalPages, $currentPage + 2);
+            ?>
+
+            <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($i)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition
+                   <?= $i === $currentPage
+                       ? 'bg-teal-600 text-white shadow-md shadow-teal-100'
+                       : 'bg-white border border-slate-200 text-slate-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300' ?>">
+
+                    <?= $i ?>
+
+                </a>
+
+            <?php endfor; ?>
+
+            <!-- TRANG SAU -->
+            <?php if ($currentPage < $totalPages): ?>
+
+                <a href="<?= htmlspecialchars($makePageUrl($currentPage + 1)) ?>"
+                   class="w-10 h-10 rounded-full flex items-center justify-center border border-slate-200 bg-white text-slate-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 transition">
+
+                    <i class="fa-solid fa-chevron-right"></i>
+
+                </a>
+
+            <?php else: ?>
+
+                <span class="w-10 h-10 rounded-full flex items-center justify-center border border-slate-100 bg-slate-50 text-slate-300">
+
+                    <i class="fa-solid fa-chevron-right"></i>
+
+                </span>
+
+            <?php endif; ?>
+
+        </div>
+
+        <p class="text-xs text-slate-400">
+            Trang <?= $currentPage ?> / <?= $totalPages ?>
+            · <?= $totalRecords ?> đánh giá
+        </p>
+
+    </div>
+
+<?php endif; ?>

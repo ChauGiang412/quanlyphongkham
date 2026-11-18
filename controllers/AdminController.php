@@ -356,9 +356,7 @@ Elite Clinic
     private function paginationLinks(int $total, int $page, int $perPage = 5): string
     {
         $totalPages = max(1, (int)ceil($total / max(1, $perPage)));
-        if ($totalPages <= 1) {
-            return '<div class="mt-5 text-xs text-slate-500">Tổng cộng ' . $total . ' bản ghi.</div>';
-        }
+        $page = min(max(1, $page), $totalPages);
 
         $params = $_GET;
         $html = '<nav class="mt-6 flex flex-wrap items-center justify-between gap-3" aria-label="Phân trang">';
@@ -492,7 +490,12 @@ Elite Clinic
                 $specialtyValues[] = (int)$row['tong'];
             }
 
-            // 5. Lịch khám mới nhất
+            // 5. Lịch khám mới nhất (có phân trang)
+            $recentPerPage = 5;
+            $recentTotal = (int)$this->db->query("SELECT COUNT(*) FROM lich_kham")->fetchColumn();
+            $recentPages = max(1, (int)ceil($recentTotal / $recentPerPage));
+            $recentPage = min(max(1, (int)($_GET['page'] ?? 1)), $recentPages);
+            $recentOffset = ($recentPage - 1) * $recentPerPage;
             $recentRows = $this->db->query(
                 "SELECT lk.ma_lich_kham, lk.ngay_kham, lk.gio_kham,
                         lk.trang_thai, nd.ho_ten, bs.ten_bac_si,
@@ -502,7 +505,7 @@ Elite Clinic
                  LEFT JOIN bac_si bs ON bs.ma_bac_si=lk.ma_bac_si
                  LEFT JOIN chuyen_khoa ck ON ck.ma_chuyen_khoa=lk.ma_chuyen_khoa
                  ORDER BY lk.ma_lich_kham DESC
-                 LIMIT 8"
+                 LIMIT {$recentPerPage} OFFSET {$recentOffset}"
             )->fetchAll(PDO::FETCH_ASSOC);
 
             $colorClasses = [
@@ -645,6 +648,7 @@ Elite Clinic
 
             $content .= '
             </tbody></table></div>
+        <div class="px-5 pb-5">' . $this->paginationLinks($recentTotal, $recentPage, $recentPerPage) . '</div>
     </section>
 </div>
 
@@ -2586,13 +2590,19 @@ Chưa có đánh giá nào trong hệ thống.
          * trong cấu trúc đã cung cấp không có cột này.
          */
 
+        $totalRows = (int)$this->db->query("SELECT COUNT(*) FROM thong_bao")->fetchColumn();
+        $perPage = 5;
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
+        $offset = ($page - 1) * $perPage;
+
         $rows = $this->db->query(
             "SELECT tb.*,nd.ho_ten
              FROM thong_bao tb
              LEFT JOIN nguoi_dung nd
                 ON nd.ma_nguoi_dung=tb.ma_nguoi_dung
              ORDER BY tb.ma_thong_bao DESC
-             LIMIT 100"
+             LIMIT {$perPage} OFFSET {$offset}"
         )->fetchAll(PDO::FETCH_ASSOC);
 
         $content = '<div class="flex justify-end mb-4"><button type="button" onclick="document.getElementById(\'notificationDialog\').showModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-sm">+ Soạn thông báo</button></div>';
@@ -2671,7 +2681,7 @@ Chưa có thông báo.
 </tr>';
         }
 
-        $content .= '</tbody></table></div>';
+        $content .= '</tbody></table></div>' . $this->paginationLinks($totalRows, $page, $perPage);
 
         $this->render('Quản lý thông báo', $content);
     }

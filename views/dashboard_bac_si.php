@@ -195,6 +195,10 @@ $statusLabels = [
 
         </div>
 
+        <div class="border-t border-slate-100">
+            <?php $paginationParams = ['act' => 'bac-si-dashboard']; require __DIR__ . '/pagination.php'; ?>
+        </div>
+
     <?php endif; ?>
 
 </div>

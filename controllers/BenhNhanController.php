@@ -141,6 +141,12 @@ class BenhNhanController
         return (int)$stmt->fetchColumn() > 0;
     }
 
+    private function taoPhanTrang($total, $page, $perPage = 5) {
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $page = min(max(1, (int)$page), $totalPages);
+        return ['page' => $page, 'perPage' => $perPage, 'total' => (int)$total, 'totalPages' => $totalPages, 'offset' => ($page - 1) * $perPage];
+    }
+
     // =====================================================
     // 1. TRANG CHỦ
     // =====================================================
@@ -151,14 +157,11 @@ class BenhNhanController
         $bacSiModel = new BacSi($this->db);
         $goiKhamModel = new GoiKham($this->db);
 
-        $danhSachChuyenKhoa =
-            $chuyenKhoaModel->getAllChuyenKhoa();
-
-        $danhSachBacSi =
-            $bacSiModel->getAllBacSi();
-
-        $danhSachGoiKham =
-            $goiKhamModel->getAllGoiKham();
+        // Trang chủ dùng slider lướt ngang nên nạp toàn bộ (giới hạn 30 mục mỗi nhóm).
+        $gioiHanSlider = 30;
+        $danhSachChuyenKhoa = $chuyenKhoaModel->getAllChuyenKhoa($gioiHanSlider, 0);
+        $danhSachBacSi = $bacSiModel->getAllBacSi($gioiHanSlider, 0);
+        $danhSachGoiKham = $goiKhamModel->getAllGoiKham($gioiHanSlider, 0);
 
         require_once __DIR__ . '/../views/home.php';
     }
@@ -189,8 +192,9 @@ class BenhNhanController
             );
         }
 
-        $danhSachBacSiTheoCK =
-            $bacSiModel->getDoctorsByChuyenKhoa($id);
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->taoPhanTrang($bacSiModel->countByChuyenKhoa($id), $page);
+        $danhSachBacSiTheoCK = $bacSiModel->getDoctorsByChuyenKhoa($id, $pagination['perPage'], $pagination['offset']);
 
         require_once __DIR__ . '/../views/chi_tiet_chuyen_khoa.php';
     }
@@ -272,14 +276,10 @@ class BenhNhanController
         $bacSiModel = new BacSi($this->db);
         $goiKhamModel = new GoiKham($this->db);
 
-        $danhSachChuyenKhoa =
-            $chuyenKhoaModel->getAllChuyenKhoa();
-
-        $danhSachBacSi =
-            $bacSiModel->getAllBacSi();
-
-        $danhSachGoiKham =
-            $goiKhamModel->getAllGoiKham();
+        // Form đặt lịch cần đầy đủ lựa chọn, không giới hạn theo trang.
+        $danhSachChuyenKhoa = $chuyenKhoaModel->getAllChuyenKhoa();
+        $danhSachBacSi = $bacSiModel->getAllBacSi();
+        $danhSachGoiKham = $goiKhamModel->getAllGoiKham();
 
         require_once __DIR__ . '/../views/dat_lich.php';
     }
@@ -615,16 +615,10 @@ class BenhNhanController
 
         $lichKhamModel = new LichKham($this->db);
 
-        $perPage = 5;
-        $totalLich = $lichKhamModel->countByNguoiDung($maNguoiDung);
-        $totalPages = max(1, (int)ceil($totalLich / $perPage));
-        $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
-        $offset = ($page - 1) * $perPage;
-
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $pagination = $this->taoPhanTrang($lichKhamModel->countByNguoiDung($maNguoiDung), $page);
         $danhSachLich = $lichKhamModel->getByNguoiDung(
-            $maNguoiDung,
-            $perPage,
-            $offset
+            $maNguoiDung, $pagination['perPage'], $pagination['offset']
         );
 
         require_once __DIR__ . '/../views/lich_su.php';

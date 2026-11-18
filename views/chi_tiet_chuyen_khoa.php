@@ -84,6 +84,7 @@ require_once 'views/header.php';
                 </div>
             <?php endif; ?>
         </div>
+        <?php $paginationParams = ['act' => 'chi-tiet-chuyen-khoa', 'id' => $chiTiet['ma_chuyen_khoa']]; require __DIR__ . '/pagination.php'; ?>
     </div>
 </main>
 
